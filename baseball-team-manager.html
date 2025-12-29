@@ -1,0 +1,2777 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>少年野球チーム管理システム</title>
+    
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    
+    <!-- SheetJS for Excel file handling -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+
+        .login-section {
+            padding: 40px;
+            text-align: center;
+        }
+
+        .login-section h2 {
+            color: #2c3e50;
+            margin-bottom: 30px;
+        }
+
+        .role-buttons {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .role-button {
+            padding: 20px 40px;
+            font-size: 18px;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+            color: white;
+            font-weight: bold;
+        }
+
+        .role-button.parent {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .role-button.admin {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+
+        .role-button:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+
+        .name-select-section {
+            padding: 40px;
+        }
+
+        .name-select-section select {
+            width: 100%;
+            max-width: 400px;
+            padding: 15px;
+            font-size: 16px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            margin: 20px auto;
+            display: block;
+        }
+
+        .main-content {
+            padding: 30px;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            border-bottom: 2px solid #e0e0e0;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+
+        .tab {
+            padding: 12px 24px;
+            background: #f5f5f5;
+            border: none;
+            border-radius: 8px 8px 0 0;
+            cursor: pointer;
+            font-size: 16px;
+            transition: all 0.3s;
+            color: #666;
+        }
+
+        .tab.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #2c3e50;
+            font-weight: bold;
+        }
+
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+        }
+
+        .form-group textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+
+        .btn {
+            padding: 12px 30px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            transition: all 0.3s;
+            color: white;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #56ab2f 0%, #a8e063 100%);
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #eb3349 0%, #f45c43 100%);
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+
+        .btn-logout {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            padding: 10px 20px;
+            background: rgba(255,255,255,0.2);
+            border: 2px solid white;
+            color: white;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .btn-logout:hover {
+            background: rgba(255,255,255,0.3);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            background: white;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        th {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            font-weight: bold;
+        }
+
+        tr:hover {
+            background: #f5f5f5;
+        }
+
+        .checkbox-group {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .checkbox-group label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+        }
+
+        .checkbox-group input[type="checkbox"] {
+            width: auto;
+        }
+
+        .summary-card {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+
+        .summary-card h3 {
+            color: #2c3e50;
+            margin-bottom: 15px;
+        }
+
+        .info-text {
+            color: #666;
+            font-size: 14px;
+            margin-top: 10px;
+            font-style: italic;
+        }
+
+        .delete-btn {
+            background: #e74c3c;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .delete-btn:hover {
+            background: #c0392b;
+        }
+
+        .assignment-grid {
+            display: grid;
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .assignment-card {
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            padding: 15px;
+            background: white;
+        }
+
+        .assignment-card h4 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+
+        .flex-row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .success-message {
+            background: #d4edda;
+            color: #155724;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border: 1px solid #c3e6cb;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>⚾ 少年野球チーム管理システム</h1>
+            <p>グラウンド予定・当番管理</p>
+            <button class="btn-logout" id="logoutBtn" style="display: none;">ログアウト</button>
+        </div>
+
+        <!-- ログイン画面 -->
+        <div id="loginSection" class="login-section">
+            <h2>ログイン</h2>
+            <div class="role-buttons">
+                <button class="role-button parent" onclick="selectRole('parent')">
+                    保護者として入力
+                </button>
+                <button class="role-button admin" onclick="selectRole('admin')">
+                    管理者として入力
+                </button>
+            </div>
+        </div>
+
+        <!-- 名前選択画面 -->
+        <div id="nameSelectSection" class="name-select-section" style="display: none;">
+            <h2 style="text-align: center; color: #2c3e50; margin-bottom: 20px;">名前を選択してください</h2>
+            <select id="nameSelect" onchange="handleNameSelect()">
+                <option value="">-- 選択してください --</option>
+            </select>
+            <div style="text-align: center; margin-top: 20px;">
+                <button class="btn btn-primary" onclick="showLogin()">戻る</button>
+            </div>
+        </div>
+
+        <!-- 管理者パスワード入力画面 -->
+        <div id="adminPasswordSection" class="name-select-section" style="display: none;">
+            <h2 style="text-align: center; color: #2c3e50; margin-bottom: 20px;">管理者ログイン</h2>
+            <div style="max-width: 400px; margin: 0 auto;">
+                <div class="form-group">
+                    <label>パスワード</label>
+                    <input type="password" id="adminPassword" placeholder="パスワードを入力" 
+                           style="width: 100%; padding: 15px; font-size: 16px; border: 2px solid #ddd; border-radius: 8px;"
+                           onkeypress="if(event.key === 'Enter') loginAsAdmin()">
+                </div>
+                <div style="text-align: center; margin-top: 20px;">
+                    <button class="btn btn-success" onclick="loginAsAdmin()" style="padding: 15px 40px; font-size: 16px;">ログイン</button>
+                </div>
+                <div style="text-align: center; margin-top: 15px;">
+                    <button class="btn btn-primary" onclick="showLogin()">戻る</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- メインコンテンツ -->
+        <div id="mainContent" class="main-content" style="display: none;">
+            <!-- タブ -->
+            <div class="tabs" id="tabButtons"></div>
+
+            <!-- 保護者用：希望日入力 -->
+            <div id="parentTab" class="tab-content">
+                <h2 style="color: #2c3e50; margin-bottom: 20px;">当番希望日入力</h2>
+                <p class="info-text">管理者が設定した月の希望日を入力してください。</p>
+                
+                <input type="month" id="parentMonth" style="display: none;">
+
+                <div id="parentFormContent"></div>
+            </div>
+
+            <!-- 管理者用タブ -->
+            <div id="practiceTab" class="tab-content">
+                <h2 style="color: #2c3e50; margin-bottom: 20px;">練習日管理</h2>
+                <p class="info-text">土日祝日から練習を行わない日を削除できます。保護者の希望日入力画面に反映されます。</p>
+                
+                <div class="form-group">
+                    <label>対象月を選択</label>
+                    <input type="month" id="practiceManageMonth" onchange="loadPracticeDayManagement()">
+                </div>
+
+                <div id="practiceDayContent"></div>
+            </div>
+
+            <div id="groundTab" class="tab-content">
+                <h2 style="color: #2c3e50; margin-bottom: 20px;">グラウンド使用予定</h2>
+                
+                <div class="form-group">
+                    <label>日付</label>
+                    <input type="date" id="groundDate">
+                </div>
+                <div class="form-group">
+                    <label>使用時間（開始）</label>
+                    <input type="time" id="groundTimeStart">
+                </div>
+                <div class="form-group">
+                    <label>使用時間（終了）</label>
+                    <input type="time" id="groundTimeEnd">
+                </div>
+                <div class="form-group">
+                    <label>場所</label>
+                    <input type="text" id="groundLocation" placeholder="例：〇〇グラウンド">
+                </div>
+                <button class="btn btn-primary" onclick="addGround()">追加</button>
+
+                <div id="groundList"></div>
+            </div>
+
+            <div id="vehicleTab" class="tab-content">
+                <h2 style="color: #2c3e50; margin-bottom: 20px;">車両情報管理</h2>
+                
+                <div class="form-group">
+                    <label>保護者名</label>
+                    <select id="vehicleParent"></select>
+                </div>
+                <div class="form-group">
+                    <label>乗車可能人数（運転手を除く）</label>
+                    <input type="number" id="vehicleCapacity" min="1" max="10" value="4">
+                </div>
+                <button class="btn btn-primary" onclick="addVehicle()">追加</button>
+
+                <div id="vehicleList"></div>
+            </div>
+
+            <div id="absenceTab" class="tab-content">
+                <h2 style="color: #2c3e50; margin-bottom: 20px;">部員欠席管理</h2>
+                
+                <div class="form-group">
+                    <label>日付</label>
+                    <input type="date" id="absenceDate">
+                </div>
+                <div class="form-group">
+                    <label>欠席する部員</label>
+                    <div class="checkbox-group" id="absenceMemberCheckboxes"></div>
+                </div>
+                <button class="btn btn-primary" onclick="addAbsence()">登録</button>
+
+                <div id="absenceList"></div>
+            </div>
+
+            <div id="assignmentTab" class="tab-content">
+                <h2 style="color: #2c3e50; margin-bottom: 20px;">当番割り当て管理</h2>
+                
+                <div class="form-group">
+                    <label>対象月を選択</label>
+                    <input type="month" id="assignmentMonth" onchange="loadAssignmentView()">
+                </div>
+
+                <div id="assignmentContent"></div>
+            </div>
+
+            <div id="carAssignmentTab" class="tab-content">
+                <h2 style="color: #2c3e50; margin-bottom: 20px;">車両割り当て管理</h2>
+                
+                <div class="form-group">
+                    <label>対象月を選択</label>
+                    <input type="month" id="carAssignmentMonth" onchange="loadCarAssignmentView()">
+                </div>
+
+                <div id="carAssignmentContent"></div>
+            </div>
+
+            <div id="scheduleTab" class="tab-content">
+                <h2 style="color: #2c3e50; margin-bottom: 20px;">総合スケジュール表</h2>
+                
+                <div class="form-group">
+                    <label>表示月を選択</label>
+                    <input type="month" id="scheduleMonth" onchange="loadScheduleView()">
+                </div>
+
+                <div id="scheduleContent"></div>
+            </div>
+
+            <div id="settingsTab" class="tab-content">
+                <h2 style="color: #2c3e50; margin-bottom: 20px;">基本設定</h2>
+                
+                <div class="summary-card">
+                    <h3>🔥 Firebase連携設定</h3>
+                    <div id="firebaseStatus"></div>
+                    <p class="info-text">Firebase連携を有効にすると、保護者の入力データをリアルタイムで収集できます。</p>
+                    
+                    <div class="form-group">
+                        <label>データ保存モード</label>
+                        <select id="storageMode" onchange="changeStorageMode()" style="width: 100%; padding: 10px;">
+                            <option value="local">ローカルのみ（各自のブラウザに保存）</option>
+                            <option value="firebase">Firebase連携（データをクラウドで共有）</option>
+                        </select>
+                    </div>
+                    
+                    <button class="btn btn-primary" onclick="syncFromFirebase()" id="syncButton" style="display: none;">Firebaseからデータを取得</button>
+                    <button class="btn btn-success" onclick="testFirebaseConnection()" style="margin-left: 10px;">接続テスト</button>
+                </div>
+
+                <div class="summary-card">
+                    <h3>保護者入力受付月の設定</h3>
+                    <p class="info-text">保護者が希望日を入力できる月を設定します。指定した月のみ入力可能になります。</p>
+                    <div class="form-group">
+                        <label>入力受付対象月</label>
+                        <input type="month" id="inputTargetMonth">
+                    </div>
+                    <button class="btn btn-primary" onclick="setInputTargetMonth()">設定する</button>
+                    <button class="btn btn-danger" onclick="clearInputTargetMonth()" style="margin-left: 10px;">受付を停止</button>
+                    <div id="currentInputTargetMonth" style="margin-top: 15px;"></div>
+                </div>
+
+                <div class="summary-card">
+                    <h3>保護者名簿</h3>
+                    <div class="form-group">
+                        <label>Excelファイルから読み込み</label>
+                        <input type="file" id="parentExcelFile" accept=".xlsx,.xls,.csv" style="margin-bottom: 10px;">
+                        <button class="btn btn-primary" onclick="importParentsFromExcel()">Excelから読み込み</button>
+                        <p class="info-text">※Excelファイルの1列目に保護者名を入力してください（ヘッダー行がある場合は2行目から）</p>
+                    </div>
+                    <div class="form-group" style="margin-top: 20px;">
+                        <label>保護者名を個別に追加</label>
+                        <input type="text" id="newParentName" placeholder="例：山田太郎">
+                        <button class="btn btn-primary" onclick="addParent()" style="margin-top: 10px;">追加</button>
+                    </div>
+                    <div id="parentList"></div>
+                </div>
+
+                <div class="summary-card">
+                    <h3>部員名簿</h3>
+                    <div class="form-group">
+                        <label>Excelファイルから読み込み</label>
+                        <input type="file" id="memberExcelFile" accept=".xlsx,.xls,.csv" style="margin-bottom: 10px;">
+                        <button class="btn btn-primary" onclick="importMembersFromExcel()">Excelから読み込み</button>
+                        <p class="info-text">※Excelファイルの1列目に部員名を入力してください（ヘッダー行がある場合は2行目から）</p>
+                    </div>
+                    <div class="form-group" style="margin-top: 20px;">
+                        <label>部員名を個別に追加</label>
+                        <input type="text" id="newMemberName" placeholder="例：山田一郎">
+                        <button class="btn btn-primary" onclick="addMember()" style="margin-top: 10px;">追加</button>
+                    </div>
+                    <div id="memberList"></div>
+                </div>
+
+                <div class="summary-card">
+                    <h3>親子関係の設定</h3>
+                    <p class="info-text">各部員の保護者を設定してください。車両割り当て時に、自分の子供は自分の車に乗せるようにします。</p>
+                    <div id="parentChildRelationList"></div>
+                </div>
+
+                <div class="summary-card">
+                    <h3>同乗する兄弟姉妹の人数</h3>
+                    <p class="info-text">各保護者が車当番の際に一緒に乗る、部員ではない兄弟姉妹の人数を設定してください。</p>
+                    <div id="siblingsCountList"></div>
+                </div>
+
+                <div class="summary-card">
+                    <h3>部員の居住地区設定</h3>
+                    <p class="info-text">各部員の居住地区を設定してください。車両割り当て時に、同じ地区の部員をできるだけ同じ車に割り当てます。</p>
+                    <div id="memberDistrictList"></div>
+                </div>
+
+                <div class="summary-card">
+                    <h3>データ管理</h3>
+                    <button class="btn btn-danger" onclick="clearAllData()">全データをクリア</button>
+                    <p class="info-text">※注意：この操作は取り消せません</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ==========================================
+        // Firebase設定（管理者が設定してください）
+        // ==========================================
+        
+        const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyAbyg-sZKbXghOpyDpTyoZ7HSqhiqr2Sgo",
+  authDomain: "mutsumibaseball-manager.firebaseapp.com",
+  projectId: "mutsumibaseball-manager",
+  storageBucket: "mutsumibaseball-manager.firebasestorage.app",
+  messagingSenderId: "216970276594",
+  appId: "1:216970276594:web:0e04015ffd3af9a382aa6b"
+};
+
+        // Firebase初期化
+        let db = null;
+        let firebaseInitialized = false;
+
+        function initializeFirebase() {
+            if (!FIREBASE_CONFIG.apiKey) {
+                console.log('Firebase設定が未設定です');
+                return false;
+            }
+
+            try {
+                if (!firebase.apps.length) {
+                    firebase.initializeApp(FIREBASE_CONFIG);
+                }
+                db = firebase.firestore();
+                firebaseInitialized = true;
+                console.log('Firebase初期化成功');
+                return true;
+            } catch (error) {
+                console.error('Firebase初期化エラー:', error);
+                return false;
+            }
+        }
+
+        // グローバル変数
+        let currentUser = null;
+        let currentRole = null;
+
+        // ローカルストレージのキー
+        const STORAGE_KEYS = {
+            parents: 'baseball_parents',
+            members: 'baseball_members',
+            grounds: 'baseball_grounds',
+            vehicles: 'baseball_vehicles',
+            absences: 'baseball_absences',
+            preferences: 'baseball_preferences',
+            assignments: 'baseball_assignments',
+            practice_days: 'baseball_practice_days',
+            input_target_month: 'baseball_input_target_month',
+            parent_child_relations: 'baseball_parent_child_relations',
+            siblings_count: 'baseball_siblings_count',
+            member_districts: 'baseball_member_districts', // 部員の居住地区
+            storage_mode: 'baseball_storage_mode',
+            car_assignments: 'baseball_car_assignments'
+        };
+
+        // 初期化
+        function init() {
+            // Firebase初期化を試行
+            initializeFirebase();
+            
+            // ストレージモードの初期化
+            if (!localStorage.getItem(STORAGE_KEYS.storage_mode)) {
+                localStorage.setItem(STORAGE_KEYS.storage_mode, 'local');
+            }
+            
+            // デフォルトデータの設定（同期的に実行）
+            const existingParents = localStorage.getItem(STORAGE_KEYS.parents);
+            const existingMembers = localStorage.getItem(STORAGE_KEYS.members);
+            
+            if (!existingParents) {
+                localStorage.setItem(STORAGE_KEYS.parents, JSON.stringify(['山田太郎', '佐藤花子', '鈴木一郎', '田中美咲', '管理者']));
+                console.log('デフォルト保護者データを設定しました');
+            }
+            if (!existingMembers) {
+                localStorage.setItem(STORAGE_KEYS.members, JSON.stringify(['部員A', '部員B', '部員C', '部員D', '部員E']));
+                console.log('デフォルト部員データを設定しました');
+            }
+            
+            // イベントリスナー
+            document.getElementById('logoutBtn').addEventListener('click', logout);
+        }
+
+        // データ保存・取得
+        async function saveData(key, data) {
+            const storageMode = localStorage.getItem(STORAGE_KEYS.storage_mode) || 'local';
+            
+            // ローカルストレージには常に保存
+            try {
+                localStorage.setItem(key, JSON.stringify(data));
+            } catch (e) {
+                console.error('ローカルストレージ保存エラー:', e);
+                alert('データの保存に失敗しました');
+                return;
+            }
+
+            // Firebaseモードの場合、保護者の希望データ（preferences）のみFirestoreにも保存
+            if (storageMode === 'firebase' && firebaseInitialized && key === STORAGE_KEYS.preferences) {
+                try {
+                    await db.collection('baseball_data').doc(key).set({
+                        data: data,
+                        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                    console.log(`Firebase保存成功: ${key}`);
+                } catch (error) {
+                    console.error('Firebase保存エラー:', error);
+                    // Firebaseへの保存に失敗してもローカルには保存済み
+                }
+            }
+        }
+
+        async function getData(key) {
+            const storageMode = localStorage.getItem(STORAGE_KEYS.storage_mode) || 'local';
+
+            // Firebaseモードかつ保護者の希望データの場合、Firebaseから取得
+            if (storageMode === 'firebase' && firebaseInitialized && key === STORAGE_KEYS.preferences) {
+                try {
+                    const doc = await db.collection('baseball_data').doc(key).get();
+                    if (doc.exists) {
+                        return doc.data().data;
+                    }
+                } catch (error) {
+                    console.error('Firebase取得エラー:', error);
+                    // エラーの場合はローカルストレージから取得
+                }
+            }
+
+            // ローカルストレージから取得
+            try {
+                const data = localStorage.getItem(key);
+                return data ? JSON.parse(data) : null;
+            } catch (e) {
+                console.error('データ取得エラー:', e);
+                return null;
+            }
+        }
+
+        // ロール選択
+        async function selectRole(role) {
+            currentRole = role;
+            document.getElementById('loginSection').style.display = 'none';
+            
+            if (role === 'admin') {
+                // 管理者はパスワード入力
+                document.getElementById('adminPasswordSection').style.display = 'block';
+            } else {
+                // 保護者は名前選択
+                document.getElementById('nameSelectSection').style.display = 'block';
+                
+                const select = document.getElementById('nameSelect');
+                select.innerHTML = '<option value="">-- 選択してください --</option>';
+                
+                // 保護者データを取得（非同期対応）
+                let parents = await getData(STORAGE_KEYS.parents);
+                
+                // データが空の場合、デフォルトデータを設定
+                if (!parents || parents.length === 0) {
+                    console.log('保護者データが空なので、デフォルトデータを設定します');
+                    parents = ['山田太郎', '佐藤花子', '鈴木一郎', '田中美咲', '管理者'];
+                    await saveData(STORAGE_KEYS.parents, parents);
+                }
+                
+                parents.forEach(parent => {
+                    const option = document.createElement('option');
+                    option.value = parent;
+                    option.textContent = parent;
+                    select.appendChild(option);
+                });
+                
+                console.log('保護者リスト:', parents);
+            }
+        }
+        
+        // 管理者パスワードログイン
+        function loginAsAdmin() {
+            const password = document.getElementById('adminPassword').value;
+            const correctPassword = 'mutsumi2025'; // パスワードを変更する場合はここを編集
+            
+            if (password === correctPassword) {
+                currentUser = '管理者';
+                document.getElementById('adminPasswordSection').style.display = 'none';
+                document.getElementById('mainContent').style.display = 'block';
+                setupTabs();
+                loadAllData();
+            } else {
+                alert('パスワードが正しくありません');
+                document.getElementById('adminPassword').value = '';
+            }
+        }
+
+        // 名前選択
+        function handleNameSelect() {
+            const name = document.getElementById('nameSelect').value;
+            if (name) {
+                login(name);
+            }
+        }
+
+        // ログイン
+        function login(name) {
+            currentUser = name;
+            document.getElementById('nameSelectSection').style.display = 'none';
+            document.getElementById('mainContent').style.display = 'block';
+            document.getElementById('logoutBtn').style.display = 'block';
+            
+            setupTabs();
+            loadAllData();
+        }
+
+        // ログアウト
+        function logout() {
+            currentUser = null;
+            currentRole = null;
+            document.getElementById('mainContent').style.display = 'none';
+            document.getElementById('logoutBtn').style.display = 'none';
+            showLogin();
+        }
+
+        // ログイン画面表示
+        function showLogin() {
+            document.getElementById('loginSection').style.display = 'block';
+            document.getElementById('nameSelectSection').style.display = 'none';
+            document.getElementById('adminPasswordSection').style.display = 'none';
+            document.getElementById('mainContent').style.display = 'none';
+            currentUser = null;
+            currentRole = null;
+            document.getElementById('adminPassword').value = '';
+        }
+
+        // タブ設定
+        function setupTabs() {
+            const tabButtons = document.getElementById('tabButtons');
+            tabButtons.innerHTML = '';
+
+            const tabs = currentRole === 'admin' 
+                ? [
+                    { id: 'practice', label: '練習日管理' },
+                    { id: 'ground', label: 'グラウンド予定' },
+                    { id: 'vehicle', label: '車両情報' },
+                    { id: 'absence', label: '欠席管理' },
+                    { id: 'assignment', label: '当番割り当て' },
+                    { id: 'carAssignment', label: '車両割り当て' },
+                    { id: 'schedule', label: '総合スケジュール' },
+                    { id: 'settings', label: '設定' }
+                ]
+                : [
+                    { id: 'parent', label: '希望日入力' }
+                ];
+
+            tabs.forEach((tab, index) => {
+                const button = document.createElement('button');
+                button.className = 'tab' + (index === 0 ? ' active' : '');
+                button.textContent = tab.label;
+                button.onclick = () => switchTab(tab.id);
+                tabButtons.appendChild(button);
+            });
+
+            // 最初のタブを表示
+            switchTab(tabs[0].id);
+        }
+
+        // タブ切り替え
+        function switchTab(tabId) {
+            // すべてのタブを非表示
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            document.querySelectorAll('.tab').forEach(button => {
+                button.classList.remove('active');
+            });
+
+            // 選択されたタブを表示
+            const tabContent = document.getElementById(tabId + 'Tab');
+            if (tabContent) {
+                tabContent.classList.add('active');
+            }
+
+            // タブボタンをアクティブに
+            event.target.classList.add('active');
+
+            // タブに応じたデータ読み込み
+            if (tabId === 'practice') loadPracticeDayManagement();
+            if (tabId === 'ground') loadGroundList();
+            if (tabId === 'vehicle') loadVehicleList();
+            if (tabId === 'absence') loadAbsenceList();
+            if (tabId === 'settings') loadSettings();
+        }
+
+        // 全データ読み込み
+        async function loadAllData() {
+            if (currentRole === 'admin') {
+                // 当月を自動設定
+                const now = new Date();
+                const monthStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+                document.getElementById('practiceManageMonth').value = monthStr;
+                await loadPracticeDayManagement();
+                await loadGroundList();
+                await loadVehicleList();
+                await loadAbsenceList();
+                await loadSettings();
+            } else {
+                // 保護者用：管理者が設定した対象月を読み込み
+                await loadParentForm();
+            }
+        }
+
+        // 練習日管理
+        async function loadPracticeDayManagement() {
+            const month = document.getElementById('practiceManageMonth')?.value;
+            if (!month) return;
+
+            const [year, monthNum] = month.split('-').map(Number);
+            const weekends = getWeekendsAndHolidays(year, monthNum);
+            const practiceDays = await getPracticeDays(month);
+
+            let html = '<div class="summary-card">';
+            html += '<p class="info-text">練習を行わない日を削除してください。保護者への希望日入力画面に反映されます。</p>';
+            html += '<table style="margin-top: 15px;">';
+            html += '<thead><tr><th>日付</th><th>状態</th><th>操作</th></tr></thead><tbody>';
+
+            weekends.forEach(day => {
+                const isActive = practiceDays.includes(day.date);
+                const dateEscaped = day.date.replace(/-/g, '_');
+                html += `<tr style="${!isActive ? 'background: #ffebee;' : ''}">`;
+                html += `<td><strong>${day.display}</strong></td>`;
+                html += `<td>${isActive ? '✓ 練習日' : '✗ 練習なし'}</td>`;
+                html += `<td>`;
+                if (isActive) {
+                    html += `<button class="delete-btn practice-remove-btn" data-month="${month}" data-date="${day.date}">練習なしに変更</button>`;
+                } else {
+                    html += `<button class="btn btn-success practice-add-btn" style="padding: 6px 12px; font-size: 14px;" data-month="${month}" data-date="${day.date}">練習日に戻す</button>`;
+                }
+                html += `</td>`;
+                html += `</tr>`;
+            });
+
+            html += '</tbody></table></div>';
+            
+            document.getElementById('practiceDayContent').innerHTML = html;
+
+            // イベントリスナーを追加
+            document.querySelectorAll('.practice-remove-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const month = this.getAttribute('data-month');
+                    const date = this.getAttribute('data-date');
+                    removePracticeDay(month, date);
+                });
+            });
+
+            document.querySelectorAll('.practice-add-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const month = this.getAttribute('data-month');
+                    const date = this.getAttribute('data-date');
+                    addPracticeDay(month, date);
+                });
+            });
+        }
+
+        // 練習日を削除
+        async function removePracticeDay(month, date) {
+            if (!confirm('この日を練習なしにしますか？')) return;
+
+            const practiceDays = await getData(STORAGE_KEYS.practice_days) || {};
+            if (practiceDays[month]) {
+                practiceDays[month] = practiceDays[month].filter(d => d !== date);
+                await saveData(STORAGE_KEYS.practice_days, practiceDays);
+            }
+
+            loadPracticeDayManagement();
+        }
+
+        // 練習日を追加
+        async function addPracticeDay(month, date) {
+            const practiceDays = await getData(STORAGE_KEYS.practice_days) || {};
+            if (!practiceDays[month]) {
+                practiceDays[month] = [];
+            }
+            if (!practiceDays[month].includes(date)) {
+                practiceDays[month].push(date);
+                practiceDays[month].sort();
+                await saveData(STORAGE_KEYS.practice_days, practiceDays);
+            }
+
+            loadPracticeDayManagement();
+        }
+
+        // グラウンド追加
+        async function addGround() {
+            const date = document.getElementById('groundDate').value;
+            const timeStart = document.getElementById('groundTimeStart').value;
+            const timeEnd = document.getElementById('groundTimeEnd').value;
+            const location = document.getElementById('groundLocation').value;
+
+            if (!date || !timeStart || !timeEnd || !location) {
+                alert('すべての項目を入力してください');
+                return;
+            }
+
+            const grounds = await getData(STORAGE_KEYS.grounds) || [];
+            grounds.push({ date, timeStart, timeEnd, location, id: Date.now() });
+            await saveData(STORAGE_KEYS.grounds, grounds);
+
+            // フォームクリア
+            document.getElementById('groundDate').value = '';
+            document.getElementById('groundTimeStart').value = '';
+            document.getElementById('groundTimeEnd').value = '';
+            document.getElementById('groundLocation').value = '';
+
+            await loadGroundList();
+        }
+
+        // グラウンドリスト表示
+        async function loadGroundList() {
+            const grounds = await getData(STORAGE_KEYS.grounds) || [];
+            const listDiv = document.getElementById('groundList');
+
+            if (grounds.length === 0) {
+                listDiv.innerHTML = '<p class="info-text">登録されているグラウンド予定はありません</p>';
+                return;
+            }
+
+            // 日付順にソート
+            grounds.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+            let html = '<table><thead><tr><th>日付</th><th>時間</th><th>場所</th><th>操作</th></tr></thead><tbody>';
+            grounds.forEach(ground => {
+                html += `
+                    <tr>
+                        <td>${ground.date}</td>
+                        <td>${ground.timeStart} - ${ground.timeEnd}</td>
+                        <td>${ground.location}</td>
+                        <td><button class="delete-btn" onclick="deleteGround(${ground.id})">削除</button></td>
+                    </tr>
+                `;
+            });
+            html += '</tbody></table>';
+            listDiv.innerHTML = html;
+        }
+
+        // グラウンド削除
+        async function deleteGround(id) {
+            if (!confirm('本当に削除しますか？')) return;
+            
+            let grounds = await getData(STORAGE_KEYS.grounds) || [];
+            grounds = grounds.filter(g => g.id !== id);
+            await saveData(STORAGE_KEYS.grounds, grounds);
+            await loadGroundList();
+        }
+
+        // 車両追加
+        // 車両追加
+        async function addVehicle() {
+            const parent = document.getElementById('vehicleParent').value;
+            const capacity = parseInt(document.getElementById('vehicleCapacity').value);
+
+            if (!parent) {
+                alert('保護者を選択してください');
+                return;
+            }
+
+            const vehicles = await getData(STORAGE_KEYS.vehicles) || [];
+            
+            // 既存チェック
+            const existing = vehicles.find(v => v.parent === parent);
+            if (existing) {
+                if (!confirm('この保護者の車両情報は既に登録されています。更新しますか？')) {
+                    return;
+                }
+                existing.capacity = capacity;
+            } else {
+                vehicles.push({ parent, capacity, id: Date.now() });
+            }
+
+            await saveData(STORAGE_KEYS.vehicles, vehicles);
+            document.getElementById('vehicleCapacity').value = 4;
+            await loadVehicleList();
+        }
+
+        // 車両リスト表示
+        async function loadVehicleList() {
+            const vehicles = await getData(STORAGE_KEYS.vehicles) || [];
+            const parents = await getData(STORAGE_KEYS.parents) || [];
+            
+            // セレクトボックス更新
+            const select = document.getElementById('vehicleParent');
+            select.innerHTML = '<option value="">-- 選択してください --</option>';
+            parents.forEach(parent => {
+                const option = document.createElement('option');
+                option.value = parent;
+                option.textContent = parent;
+                select.appendChild(option);
+            });
+
+            const listDiv = document.getElementById('vehicleList');
+
+            if (vehicles.length === 0) {
+                listDiv.innerHTML = '<p class="info-text">登録されている車両情報はありません</p>';
+                return;
+            }
+
+            let html = '<table><thead><tr><th>保護者名</th><th>乗車可能人数</th><th>操作</th></tr></thead><tbody>';
+            vehicles.forEach(vehicle => {
+                html += `
+                    <tr>
+                        <td>${vehicle.parent}</td>
+                        <td>${vehicle.capacity}名</td>
+                        <td><button class="delete-btn" onclick="deleteVehicle(${vehicle.id})">削除</button></td>
+                    </tr>
+                `;
+            });
+            html += '</tbody></table>';
+            listDiv.innerHTML = html;
+        }
+
+        // 車両削除
+        async function deleteVehicle(id) {
+            if (!confirm('本当に削除しますか？')) return;
+            
+            let vehicles = await getData(STORAGE_KEYS.vehicles) || [];
+            vehicles = vehicles.filter(v => v.id !== id);
+            await saveData(STORAGE_KEYS.vehicles, vehicles);
+            await loadVehicleList();
+        }
+
+        // 欠席登録
+        async function addAbsence() {
+            const date = document.getElementById('absenceDate').value;
+            const checkboxes = document.querySelectorAll('#absenceMemberCheckboxes input:checked');
+            
+            if (!date) {
+                alert('日付を選択してください');
+                return;
+            }
+
+            if (checkboxes.length === 0) {
+                alert('欠席する部員を選択してください');
+                return;
+            }
+
+            const members = Array.from(checkboxes).map(cb => cb.value);
+            
+            const absences = await getData(STORAGE_KEYS.absences) || [];
+            
+            // 同じ日付の欠席情報を削除
+            const filtered = absences.filter(a => a.date !== date);
+            filtered.push({ date, members, id: Date.now() });
+            
+            await saveData(STORAGE_KEYS.absences, filtered);
+            
+            // フォームクリア
+            document.getElementById('absenceDate').value = '';
+            checkboxes.forEach(cb => cb.checked = false);
+            
+            await loadAbsenceList();
+        }
+
+        // 欠席リスト表示
+        async function loadAbsenceList() {
+            const absences = await getData(STORAGE_KEYS.absences) || [];
+            const members = await getData(STORAGE_KEYS.members) || [];
+            
+            // チェックボックス更新
+            const checkboxDiv = document.getElementById('absenceMemberCheckboxes');
+            checkboxDiv.innerHTML = '';
+            members.forEach(member => {
+                const label = document.createElement('label');
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.value = member;
+                label.appendChild(checkbox);
+                label.appendChild(document.createTextNode(member));
+                checkboxDiv.appendChild(label);
+            });
+
+            const listDiv = document.getElementById('absenceList');
+
+            if (absences.length === 0) {
+                listDiv.innerHTML = '<p class="info-text">登録されている欠席情報はありません</p>';
+                return;
+            }
+
+            // 日付順にソート
+            absences.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+            let html = '<table><thead><tr><th>日付</th><th>欠席者</th><th>操作</th></tr></thead><tbody>';
+            absences.forEach(absence => {
+                html += `
+                    <tr>
+                        <td>${absence.date}</td>
+                        <td>${absence.members.join(', ')}</td>
+                        <td><button class="delete-btn" onclick="deleteAbsence(${absence.id})">削除</button></td>
+                    </tr>
+                `;
+            });
+            html += '</tbody></table>';
+            listDiv.innerHTML = html;
+        }
+
+        // 欠席削除
+        async function deleteAbsence(id) {
+            if (!confirm('本当に削除しますか？')) return;
+            
+            let absences = await getData(STORAGE_KEYS.absences) || [];
+            absences = absences.filter(a => a.id !== id);
+            await saveData(STORAGE_KEYS.absences, absences);
+            await loadAbsenceList();
+        }
+
+        // 土日祝日を取得
+        function getWeekendsAndHolidays(year, month) {
+            const dates = [];
+            const daysInMonth = new Date(year, month, 0).getDate();
+            
+            // 日本の祝日（2024-2030年対応）
+            const holidays = {
+                // 2024年
+                '2024-01-01': '元日',
+                '2024-01-08': '成人の日',
+                '2024-02-11': '建国記念の日',
+                '2024-02-12': '振替休日',
+                '2024-02-23': '天皇誕生日',
+                '2024-03-20': '春分の日',
+                '2024-04-29': '昭和の日',
+                '2024-05-03': '憲法記念日',
+                '2024-05-04': 'みどりの日',
+                '2024-05-05': 'こどもの日',
+                '2024-05-06': '振替休日',
+                '2024-07-15': '海の日',
+                '2024-08-11': '山の日',
+                '2024-08-12': '振替休日',
+                '2024-09-16': '敬老の日',
+                '2024-09-22': '秋分の日',
+                '2024-09-23': '振替休日',
+                '2024-10-14': 'スポーツの日',
+                '2024-11-03': '文化の日',
+                '2024-11-04': '振替休日',
+                '2024-11-23': '勤労感謝の日',
+                
+                // 2025年
+                '2025-01-01': '元日',
+                '2025-01-13': '成人の日',
+                '2025-02-11': '建国記念の日',
+                '2025-02-23': '天皇誕生日',
+                '2025-02-24': '振替休日',
+                '2025-03-20': '春分の日',
+                '2025-04-29': '昭和の日',
+                '2025-05-03': '憲法記念日',
+                '2025-05-04': 'みどりの日',
+                '2025-05-05': 'こどもの日',
+                '2025-05-06': '振替休日',
+                '2025-07-21': '海の日',
+                '2025-08-11': '山の日',
+                '2025-09-15': '敬老の日',
+                '2025-09-23': '秋分の日',
+                '2025-10-13': 'スポーツの日',
+                '2025-11-03': '文化の日',
+                '2025-11-23': '勤労感謝の日',
+                '2025-11-24': '振替休日',
+                
+                // 2026年
+                '2026-01-01': '元日',
+                '2026-01-12': '成人の日',
+                '2026-02-11': '建国記念の日',
+                '2026-02-23': '天皇誕生日',
+                '2026-03-20': '春分の日',
+                '2026-04-29': '昭和の日',
+                '2026-05-03': '憲法記念日',
+                '2026-05-04': 'みどりの日',
+                '2026-05-05': 'こどもの日',
+                '2026-05-06': '振替休日',
+                '2026-07-20': '海の日',
+                '2026-08-11': '山の日',
+                '2026-09-21': '敬老の日',
+                '2026-09-22': '国民の休日',
+                '2026-09-23': '秋分の日',
+                '2026-10-12': 'スポーツの日',
+                '2026-11-03': '文化の日',
+                '2026-11-23': '勤労感謝の日',
+                
+                // 2027年
+                '2027-01-01': '元日',
+                '2027-01-11': '成人の日',
+                '2027-02-11': '建国記念の日',
+                '2027-02-23': '天皇誕生日',
+                '2027-03-21': '春分の日',
+                '2027-03-22': '振替休日',
+                '2027-04-29': '昭和の日',
+                '2027-05-03': '憲法記念日',
+                '2027-05-04': 'みどりの日',
+                '2027-05-05': 'こどもの日',
+                '2027-07-19': '海の日',
+                '2027-08-11': '山の日',
+                '2027-09-20': '敬老の日',
+                '2027-09-23': '秋分の日',
+                '2027-10-11': 'スポーツの日',
+                '2027-11-03': '文化の日',
+                '2027-11-23': '勤労感謝の日',
+                
+                // 2028年
+                '2028-01-01': '元日',
+                '2028-01-10': '成人の日',
+                '2028-02-11': '建国記念の日',
+                '2028-02-23': '天皇誕生日',
+                '2028-03-20': '春分の日',
+                '2028-04-29': '昭和の日',
+                '2028-05-03': '憲法記念日',
+                '2028-05-04': 'みどりの日',
+                '2028-05-05': 'こどもの日',
+                '2028-07-17': '海の日',
+                '2028-08-11': '山の日',
+                '2028-09-18': '敬老の日',
+                '2028-09-22': '秋分の日',
+                '2028-10-09': 'スポーツの日',
+                '2028-11-03': '文化の日',
+                '2028-11-23': '勤労感謝の日',
+                
+                // 2029年
+                '2029-01-01': '元日',
+                '2029-01-08': '成人の日',
+                '2029-02-11': '建国記念の日',
+                '2029-02-12': '振替休日',
+                '2029-02-23': '天皇誕生日',
+                '2029-03-20': '春分の日',
+                '2029-04-29': '昭和の日',
+                '2029-04-30': '振替休日',
+                '2029-05-03': '憲法記念日',
+                '2029-05-04': 'みどりの日',
+                '2029-05-05': 'こどもの日',
+                '2029-07-16': '海の日',
+                '2029-08-11': '山の日',
+                '2029-09-17': '敬老の日',
+                '2029-09-23': '秋分の日',
+                '2029-09-24': '振替休日',
+                '2029-10-08': 'スポーツの日',
+                '2029-11-03': '文化の日',
+                '2029-11-23': '勤労感謝の日',
+                
+                // 2030年
+                '2030-01-01': '元日',
+                '2030-01-14': '成人の日',
+                '2030-02-11': '建国記念の日',
+                '2030-02-23': '天皇誕生日',
+                '2030-03-20': '春分の日',
+                '2030-04-29': '昭和の日',
+                '2030-05-03': '憲法記念日',
+                '2030-05-04': 'みどりの日',
+                '2030-05-05': 'こどもの日',
+                '2030-05-06': '振替休日',
+                '2030-07-15': '海の日',
+                '2030-08-11': '山の日',
+                '2030-08-12': '振替休日',
+                '2030-09-16': '敬老の日',
+                '2030-09-23': '秋分の日',
+                '2030-10-14': 'スポーツの日',
+                '2030-11-03': '文化の日',
+                '2030-11-04': '振替休日',
+                '2030-11-23': '勤労感謝の日'
+            };
+
+            const dayNames = ['日', '月', '火', '水', '木', '金', '土'];
+
+            for (let day = 1; day <= daysInMonth; day++) {
+                const date = new Date(year, month - 1, day);
+                const dayOfWeek = date.getDay();
+                const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                
+                // 土曜(6)または日曜(0)または祝日
+                if (dayOfWeek === 0 || dayOfWeek === 6 || holidays[dateStr]) {
+                    const dayName = dayNames[dayOfWeek];
+                    const holidayName = holidays[dateStr] || '';
+                    dates.push({
+                        date: dateStr,
+                        display: `${month}/${day}(${dayName})${holidayName ? ' ' + holidayName : ''}`
+                    });
+                }
+            }
+            
+            // 月末が土曜日の場合、翌日の日曜日（翌月1日）も含める
+            const lastDay = new Date(year, month - 1, daysInMonth);
+            if (lastDay.getDay() === 6) { // 土曜日
+                const nextDay = new Date(year, month - 1, daysInMonth + 1);
+                const nextYear = nextDay.getFullYear();
+                const nextMonth = nextDay.getMonth() + 1;
+                const nextDate = nextDay.getDate();
+                const nextDateStr = `${nextYear}-${String(nextMonth).padStart(2, '0')}-${String(nextDate).padStart(2, '0')}`;
+                const holidayName = holidays[nextDateStr] || '';
+                
+                dates.push({
+                    date: nextDateStr,
+                    display: `${nextMonth}/${nextDate}(日)${holidayName ? ' ' + holidayName : ''}`
+                });
+            }
+            
+            return dates;
+        }
+
+        // 練習日を取得・管理
+        async function getPracticeDays(month) {
+            const practiceDays = await getData(STORAGE_KEYS.practice_days) || {};
+            if (!practiceDays[month]) {
+                // 初回は全ての土日祝日を練習日として設定
+                const [year, monthNum] = month.split('-').map(Number);
+                const weekends = getWeekendsAndHolidays(year, monthNum);
+                practiceDays[month] = weekends.map(w => w.date);
+                await saveData(STORAGE_KEYS.practice_days, practiceDays);
+            }
+            return practiceDays[month];
+        }
+
+        // 保護者用フォーム読み込み
+        async function loadParentForm() {
+            const targetMonth = await getData(STORAGE_KEYS.input_target_month);
+            
+            if (!targetMonth) {
+                document.getElementById('parentFormContent').innerHTML = 
+                    '<p class="info-text" style="color: #e74c3c;">現在、入力受付期間外です。管理者が入力可能月を設定するまでお待ちください。</p>';
+                document.getElementById('parentMonth').value = '';
+                document.getElementById('parentMonth').disabled = true;
+                return;
+            }
+
+            // 月選択を無効化し、管理者指定の月のみ表示
+            document.getElementById('parentMonth').value = targetMonth;
+            document.getElementById('parentMonth').disabled = true;
+
+            const month = targetMonth;
+            const [year, monthNum] = month.split('-').map(Number);
+            const weekends = getWeekendsAndHolidays(year, monthNum);
+            const practiceDays = await getPracticeDays(month);
+            const activeDays = weekends.filter(w => practiceDays.includes(w.date));
+
+            if (activeDays.length === 0) {
+                document.getElementById('parentFormContent').innerHTML = 
+                    '<p class="info-text">この月の練習日はまだ設定されていません</p>';
+                return;
+            }
+
+            const preferences = await getData(STORAGE_KEYS.preferences) || {};
+            const userPrefs = preferences[currentUser] || {};
+            const monthPrefs = userPrefs[month] || {};
+
+            let html = '<div class="summary-card">';
+            html += `<h3>${year}年${monthNum}月の当番可能日を選択してください</h3>`;
+            html += '<p class="info-text">各日付について、当番が可能かどうかを選択してください</p>';
+            html += '<table style="margin-top: 15px;">';
+            html += '<thead><tr><th>日付</th><th>お茶・車両</th></tr></thead><tbody>';
+
+            activeDays.forEach(day => {
+                const pref = monthPrefs[day.date] || 'not_available';
+                html += `<tr>`;
+                html += `<td><strong>${day.display}</strong></td>`;
+                html += `<td>`;
+                html += `<select id="pref_${day.date}" style="width: 100%; padding: 8px;">`;
+                html += `<option value="both" ${pref === 'both' ? 'selected' : ''}>お茶も車も可能</option>`;
+                html += `<option value="tea_only" ${pref === 'tea_only' ? 'selected' : ''}>お茶のみ可能</option>`;
+                html += `<option value="car_only" ${pref === 'car_only' ? 'selected' : ''}>車のみ可能</option>`;
+                html += `<option value="not_available" ${pref === 'not_available' ? 'selected' : ''}>不可</option>`;
+                html += `</select>`;
+                html += `</td>`;
+                html += `</tr>`;
+            });
+
+            html += '</tbody></table></div>';
+            html += '<div class="success-message" style="display: none;" id="saveMessage">保存しました</div>';
+            html += '<button class="btn btn-success" onclick="saveParentPreference(true)">保存</button>';
+
+            document.getElementById('parentFormContent').innerHTML = html;
+        }
+
+        // 保護者希望保存
+        async function saveParentPreference(showMessage = false) {
+            const month = await getData(STORAGE_KEYS.input_target_month);
+            if (!month) {
+                alert('入力受付期間外です');
+                return;
+            }
+
+            const [year, monthNum] = month.split('-').map(Number);
+            const weekends = getWeekendsAndHolidays(year, monthNum);
+            const practiceDays = await getPracticeDays(month);
+            const activeDays = weekends.filter(w => practiceDays.includes(w.date));
+
+            const preferences = await getData(STORAGE_KEYS.preferences) || {};
+            if (!preferences[currentUser]) {
+                preferences[currentUser] = {};
+            }
+            if (!preferences[currentUser][month]) {
+                preferences[currentUser][month] = {};
+            }
+
+            activeDays.forEach(day => {
+                const select = document.getElementById(`pref_${day.date}`);
+                if (select) {
+                    preferences[currentUser][month][day.date] = select.value;
+                }
+            });
+
+            await saveData(STORAGE_KEYS.preferences, preferences);
+
+            if (showMessage) {
+                const msg = document.getElementById('saveMessage');
+                if (msg) {
+                    msg.style.display = 'block';
+                    setTimeout(() => {
+                        msg.style.display = 'none';
+                    }, 3000);
+                }
+            }
+        }
+
+        // 当番割り当て表示
+        async function loadAssignmentView() {
+            const month = document.getElementById('assignmentMonth').value;
+            if (!month) return;
+
+            const [year, monthNum] = month.split('-').map(Number);
+            const weekends = getWeekendsAndHolidays(year, monthNum);
+            const practiceDays = await getPracticeDays(month);
+            const activeDays = weekends.filter(w => practiceDays.includes(w.date));
+
+            const preferences = await getData(STORAGE_KEYS.preferences) || {};
+            const assignments = await getData(STORAGE_KEYS.assignments) || {};
+            const parents = await getData(STORAGE_KEYS.parents) || [];
+
+            if (activeDays.length === 0) {
+                document.getElementById('assignmentContent').innerHTML = 
+                    '<p class="info-text">この月の練習日はまだ設定されていません</p>';
+                return;
+            }
+
+            const monthAssignments = assignments[month] || {};
+
+            let html = '<button class="btn btn-success" onclick="autoAssign()" style="margin-bottom: 20px;">自動割り当て提案</button>';
+            html += '<div class="assignment-grid">';
+
+            activeDays.forEach(day => {
+                const dayAssignment = monthAssignments[day.date] || { tea: [], car: [] };
+
+                // 希望者集計
+                const teaAvailable = [];
+                const carAvailable = [];
+                Object.keys(preferences).forEach(parent => {
+                    const monthPrefs = preferences[parent][month] || {};
+                    const dayPref = monthPrefs[day.date];
+                    if (dayPref === 'both' || dayPref === 'tea_only') {
+                        teaAvailable.push(parent);
+                    }
+                    if (dayPref === 'both' || dayPref === 'car_only') {
+                        carAvailable.push(parent);
+                    }
+                });
+
+                html += `<div class="assignment-card">`;
+                html += `<h4>${day.display}</h4>`;
+                
+                // お茶当番
+                html += `<div style="margin-top: 15px;">`;
+                html += `<strong>お茶当番:</strong> <span style="font-size: 12px; color: #666;">(可能: ${teaAvailable.join(', ') || 'なし'})</span><br>`;
+                html += `<select multiple style="width: 100%; height: 80px; margin-top: 5px;" id="tea_${day.date}">`;
+                parents.forEach(parent => {
+                    const selected = dayAssignment.tea.includes(parent) ? 'selected' : '';
+                    const available = teaAvailable.includes(parent);
+                    html += `<option value="${parent}" ${selected} ${!available ? 'style="color: #ccc;"' : ''}>${parent}${!available ? ' (希望なし)' : ''}</option>`;
+                });
+                html += `</select>`;
+                html += `</div>`;
+
+                // 車当番
+                html += `<div style="margin-top: 15px;">`;
+                html += `<strong>車当番:</strong> <span style="font-size: 12px; color: #666;">(可能: ${carAvailable.join(', ') || 'なし'})</span><br>`;
+                html += `<select multiple style="width: 100%; height: 80px; margin-top: 5px;" id="car_${day.date}">`;
+                parents.forEach(parent => {
+                    const selected = dayAssignment.car.includes(parent) ? 'selected' : '';
+                    const available = carAvailable.includes(parent);
+                    html += `<option value="${parent}" ${selected} ${!available ? 'style="color: #ccc;"' : ''}>${parent}${!available ? ' (希望なし)' : ''}</option>`;
+                });
+                html += `</select>`;
+                html += `</div>`;
+
+                html += `</div>`;
+            });
+
+            html += '</div>';
+            html += '<button class="btn btn-primary" onclick="saveAssignments()" style="margin-top: 20px;">割り当てを保存</button>';
+
+            // 割り当て結果サマリーを追加
+            html += '<div style="margin-top: 40px; padding: 20px; background: #f8f9fa; border-radius: 10px;">';
+            html += '<h3 style="color: #2c3e50; margin-bottom: 15px;">📋 割り当て結果一覧</h3>';
+            
+            if (Object.keys(monthAssignments).length === 0) {
+                html += '<p class="info-text">まだ割り当てが保存されていません</p>';
+            } else {
+                html += '<table style="width: 100%; margin-top: 15px;">';
+                html += '<thead><tr><th style="width: 30%;">日付</th><th style="width: 35%;">お茶当番</th><th style="width: 35%;">車当番</th></tr></thead>';
+                html += '<tbody>';
+                
+                activeDays.forEach(day => {
+                    const dayAssignment = monthAssignments[day.date] || { tea: [], car: [] };
+                    html += `<tr>`;
+                    html += `<td><strong>${day.display}</strong></td>`;
+                    html += `<td>${dayAssignment.tea.length > 0 ? dayAssignment.tea.join('、') : '<span style="color: #999;">未設定</span>'}</td>`;
+                    html += `<td>${dayAssignment.car.length > 0 ? dayAssignment.car.join('、') : '<span style="color: #999;">未設定</span>'}</td>`;
+                    html += `</tr>`;
+                });
+                
+                html += '</tbody></table>';
+                
+                // 当番日数の集計
+                html += '<div style="margin-top: 30px;">';
+                html += '<h4 style="color: #2c3e50; margin-bottom: 10px;">当番日数集計</h4>';
+                html += '<table style="width: 100%;">';
+                html += '<thead><tr><th>保護者名</th><th>お茶当番</th><th>車当番</th><th>当番日数</th></tr></thead>';
+                html += '<tbody>';
+                
+                const counts = {};
+                const dutyDays = {}; // 当番日数をカウント
+                parents.forEach(parent => {
+                    counts[parent] = { tea: 0, car: 0 };
+                    dutyDays[parent] = new Set(); // 当番に参加した日付を記録
+                });
+                
+                activeDays.forEach(day => {
+                    const dayAssignment = monthAssignments[day.date] || { tea: [], car: [] };
+                    dayAssignment.tea.forEach(p => {
+                        if (counts[p]) {
+                            counts[p].tea++;
+                            dutyDays[p].add(day.date); // この日に当番があったことを記録
+                        }
+                    });
+                    dayAssignment.car.forEach(p => {
+                        if (counts[p]) {
+                            counts[p].car++;
+                            dutyDays[p].add(day.date); // この日に当番があったことを記録
+                        }
+                    });
+                });
+                
+                parents.forEach(parent => {
+                    const totalDays = dutyDays[parent].size; // ユニークな日数
+                    html += `<tr>`;
+                    html += `<td><strong>${parent}</strong></td>`;
+                    html += `<td>${counts[parent].tea}回</td>`;
+                    html += `<td>${counts[parent].car}回</td>`;
+                    html += `<td><strong>${totalDays}日</strong></td>`;
+                    html += `</tr>`;
+                });
+                
+                html += '</tbody></table>';
+                html += '</div>';
+            }
+            
+            html += '</div>';
+
+            document.getElementById('assignmentContent').innerHTML = html;
+        }
+
+        // 割り当て保存
+        async function saveAssignments() {
+            const month = document.getElementById('assignmentMonth').value;
+            if (!month) return;
+
+            const [year, monthNum] = month.split('-').map(Number);
+            const weekends = getWeekendsAndHolidays(year, monthNum);
+            const practiceDays = await getPracticeDays(month);
+            const activeDays = weekends.filter(w => practiceDays.includes(w.date));
+
+            const assignments = await getData(STORAGE_KEYS.assignments) || {};
+            if (!assignments[month]) {
+                assignments[month] = {};
+            }
+
+            activeDays.forEach(day => {
+                const teaSelect = document.getElementById(`tea_${day.date}`);
+                const carSelect = document.getElementById(`car_${day.date}`);
+
+                if (teaSelect && carSelect) {
+                    assignments[month][day.date] = {
+                        tea: Array.from(teaSelect.selectedOptions).map(opt => opt.value),
+                        car: Array.from(carSelect.selectedOptions).map(opt => opt.value)
+                    };
+                }
+            });
+
+            await saveData(STORAGE_KEYS.assignments, assignments);
+            alert('割り当てを保存しました');
+        }
+
+        // 自動割り当て
+        async function autoAssign() {
+            const month = document.getElementById('assignmentMonth').value;
+            if (!month) return;
+
+            if (!confirm('自動割り当てを実行しますか？現在の割り当ては上書きされます。')) {
+                return;
+            }
+
+            const [year, monthNum] = month.split('-').map(Number);
+            const weekends = getWeekendsAndHolidays(year, monthNum);
+            const practiceDays = await getPracticeDays(month);
+            const activeDays = weekends.filter(w => practiceDays.includes(w.date));
+
+            const preferences = await getData(STORAGE_KEYS.preferences) || {};
+            const parents = await getData(STORAGE_KEYS.parents) || [];
+            const members = await getData(STORAGE_KEYS.members) || [];
+            const absences = await getData(STORAGE_KEYS.absences) || [];
+            const vehicles = await getData(STORAGE_KEYS.vehicles) || [];
+            const siblingsCount = await getData(STORAGE_KEYS.siblings_count) || {};
+
+            const assignments = {};
+            
+            // 当番参加日数をカウント（お茶と車を兼ねた日は1日としてカウント）
+            const dutyDaysCount = {};
+            parents.forEach(p => {
+                dutyDaysCount[p] = 0;
+            });
+
+            activeDays.forEach(day => {
+                // その日の出席部員数を計算
+                const dayAbsence = absences.find(a => a.date === day.date);
+                const absentMembers = dayAbsence ? dayAbsence.members : [];
+                const attendingCount = members.length - absentMembers.length;
+
+                // お茶当番候補をリストアップ
+                const teaAvailable = [];
+                Object.keys(preferences).forEach(parent => {
+                    const monthPrefs = preferences[parent][month] || {};
+                    const dayPref = monthPrefs[day.date];
+                    if (dayPref === 'both' || dayPref === 'tea_only') {
+                        teaAvailable.push(parent);
+                    }
+                });
+
+                // 当番日数が少ない順にソート
+                teaAvailable.sort((a, b) => dutyDaysCount[a] - dutyDaysCount[b]);
+                const selectedTea = teaAvailable.slice(0, 2);
+
+                // 車当番候補をリストアップ
+                // まず、お茶当番に選ばれた人で車も可能な人
+                const teaWithCar = [];
+                selectedTea.forEach(parent => {
+                    const monthPrefs = preferences[parent][month] || {};
+                    const dayPref = monthPrefs[day.date];
+                    if (dayPref === 'both' || dayPref === 'car_only') {
+                        teaWithCar.push(parent);
+                    }
+                });
+                
+                // その他の車可能な人をリストアップ
+                const carAvailable = [];
+                Object.keys(preferences).forEach(parent => {
+                    if (!selectedTea.includes(parent)) { // お茶当番ではない人のみ
+                        const monthPrefs = preferences[parent][month] || {};
+                        const dayPref = monthPrefs[day.date];
+                        if (dayPref === 'both' || dayPref === 'car_only') {
+                            carAvailable.push(parent);
+                        }
+                    }
+                });
+
+                // 当番日数が少ない順にソート
+                carAvailable.sort((a, b) => dutyDaysCount[a] - dutyDaysCount[b]);
+                
+                // 必要な車両台数を計算
+                let totalCapacity = 0;
+                const selectedCar = [...teaWithCar]; // お茶当番で車可能な人をまず含める
+                
+                // お茶当番の車の定員を計算
+                teaWithCar.forEach(parent => {
+                    const vehicle = vehicles.find(v => v.parent === parent);
+                    const capacity = vehicle ? vehicle.capacity : 4;
+                    const siblings = siblingsCount[parent] || 0;
+                    totalCapacity += Math.max(0, capacity - siblings);
+                });
+
+                // 追加で必要な車両を追加（荷物運搬用も含めて余裕を持たせる）
+                for (const parent of carAvailable) {
+                    // 出席人数＋荷物運搬余裕（4席分）まで車を追加
+                    if (totalCapacity >= attendingCount + 4) break;
+                    
+                    const vehicle = vehicles.find(v => v.parent === parent);
+                    const capacity = vehicle ? vehicle.capacity : 4;
+                    const siblings = siblingsCount[parent] || 0;
+                    totalCapacity += Math.max(0, capacity - siblings);
+                    selectedCar.push(parent);
+                }
+
+                assignments[day.date] = {
+                    tea: selectedTea,
+                    car: selectedCar
+                };
+
+                // 当番日数をカウント（お茶と車を兼ねた日は1日としてカウント）
+                const dutyParents = new Set([...selectedTea, ...selectedCar]);
+                dutyParents.forEach(p => {
+                    dutyDaysCount[p]++;
+                });
+            });
+
+            // 一度も当番が割り当てられていない保護者を確認
+            const noDutyParents = parents.filter(p => dutyDaysCount[p] === 0);
+            
+            if (noDutyParents.length > 0) {
+                // 当番が割り当てられていない保護者に対して、可能な日を探して割り当てる
+                noDutyParents.forEach(parent => {
+                    let assigned = false;
+                    
+                    for (const day of activeDays) {
+                        if (assigned) break;
+                        
+                        const monthPrefs = preferences[parent] ? preferences[parent][month] || {} : {};
+                        const dayPref = monthPrefs[day.date];
+                        
+                        const dayAssignment = assignments[day.date];
+                        
+                        // 車当番が可能な場合
+                        if ((dayPref === 'both' || dayPref === 'car_only') && !dayAssignment.car.includes(parent)) {
+                            dayAssignment.car.push(parent);
+                            dutyDaysCount[parent]++;
+                            assigned = true;
+                        }
+                        // 車が無理でお茶が可能な場合
+                        else if ((dayPref === 'both' || dayPref === 'tea_only') && !dayAssignment.tea.includes(parent)) {
+                            // お茶当番が2名未満なら追加
+                            if (dayAssignment.tea.length < 2) {
+                                dayAssignment.tea.push(parent);
+                                dutyDaysCount[parent]++;
+                                assigned = true;
+                            }
+                        }
+                    }
+                });
+            }
+
+            // 保存
+            const allAssignments = await getData(STORAGE_KEYS.assignments) || {};
+            allAssignments[month] = assignments;
+            await saveData(STORAGE_KEYS.assignments, allAssignments);
+
+            await loadAssignmentView();
+            
+            // 結果サマリーを表示
+            const maxDays = Math.max(...Object.values(dutyDaysCount));
+            const minDays = Math.min(...Object.values(dutyDaysCount));
+            const noDutyCount = Object.values(dutyDaysCount).filter(count => count === 0).length;
+            
+            let message = '自動割り当てが完了しました。\n';
+            message += `\n当番日数: 最小${minDays}日 ～ 最大${maxDays}日`;
+            if (noDutyCount > 0) {
+                message += `\n⚠️ ${noDutyCount}名の保護者に当番を割り当てられませんでした（希望日なしの可能性）`;
+            }
+            message += '\n\n各日の出席人数に応じて必要な車両台数を割り当てています。';
+            message += '\n必要に応じて手動で調整してください。';
+            
+            alert(message);
+        }
+
+        // 車両割り当て表示
+        async function loadCarAssignmentView() {
+            const month = document.getElementById('carAssignmentMonth').value;
+            if (!month) return;
+
+            const [year, monthNum] = month.split('-').map(Number);
+            const weekends = getWeekendsAndHolidays(year, monthNum);
+            const practiceDays = await getPracticeDays(month);
+            const activeDays = weekends.filter(w => practiceDays.includes(w.date));
+
+            const assignments = await getData(STORAGE_KEYS.assignments) || {};
+            const monthAssignments = assignments[month] || {};
+            const absences = await getData(STORAGE_KEYS.absences) || [];
+            const members = await getData(STORAGE_KEYS.members) || [];
+            const vehicles = await getData(STORAGE_KEYS.vehicles) || [];
+            const relations = await getData(STORAGE_KEYS.parent_child_relations) || {};
+            const siblingsCount = await getData(STORAGE_KEYS.siblings_count) || {};
+            const carAssignmentsData = await getData(STORAGE_KEYS.car_assignments) || {};
+            const monthCarAssignments = carAssignmentsData[month] || {};
+
+            if (activeDays.length === 0) {
+                document.getElementById('carAssignmentContent').innerHTML = 
+                    '<p class="info-text">この月の練習日はまだ設定されていません</p>';
+                return;
+            }
+
+            let html = '<button class="btn btn-success" onclick="autoAssignCars()" style="margin-bottom: 20px;">自動割り当て</button>';
+            html += '<p class="info-text">各車両に乗車する部員を選択してください。自動割り当てボタンで親子関係と定員を考慮した割り当てを提案します。</p>';
+            html += '<div class="assignment-grid">';
+
+            activeDays.forEach(day => {
+                const dayAssignment = monthAssignments[day.date] || { tea: [], car: [] };
+                const carDrivers = dayAssignment.car || [];
+
+                // 欠席者を取得
+                const dayAbsence = absences.find(a => a.date === day.date);
+                const absentMembers = dayAbsence ? dayAbsence.members : [];
+                const attendingMembers = members.filter(m => !absentMembers.includes(m));
+
+                html += `<div class="assignment-card">`;
+                html += `<h4>${day.display}</h4>`;
+                html += `<p style="font-size: 14px; color: #666;">出席部員: ${attendingMembers.length}名</p>`;
+
+                if (carDrivers.length === 0) {
+                    html += `<p style="color: #e74c3c;">車当番が設定されていません</p>`;
+                } else {
+                    carDrivers.forEach(driver => {
+                        const vehicle = vehicles.find(v => v.parent === driver);
+                        const capacity = vehicle ? vehicle.capacity : 4;
+                        const siblings = siblingsCount[driver] || 0;
+                        const availableSeats = capacity - siblings;
+
+                        html += `<div style="border: 1px solid #ddd; padding: 10px; margin: 10px 0; border-radius: 5px; background: #f9f9f9;">`;
+                        html += `<strong>${driver}の車</strong> `;
+                        html += `<span style="font-size: 12px; color: #666;">(定員: ${capacity}名, 兄弟姉妹: ${siblings}名, 空席: ${availableSeats}名)</span><br>`;
+                        html += `<select multiple style="width: 100%; height: 100px; margin-top: 5px;" id="car_${day.date}_${driver}">`;
+                        attendingMembers.forEach(member => {
+                            html += `<option value="${member}">${member}</option>`;
+                        });
+                        html += `</select>`;
+                        html += `</div>`;
+                    });
+                }
+
+                html += `</div>`;
+            });
+
+            html += '</div>';
+            html += '<button class="btn btn-primary" onclick="saveCarAssignments()" style="margin-top: 20px;">割り当てを保存</button>';
+
+            // 車両割り当て結果サマリーを追加
+            html += '<div style="margin-top: 40px; padding: 20px; background: #f8f9fa; border-radius: 10px;">';
+            html += '<h3 style="color: #2c3e50; margin-bottom: 15px;">🚗 車両割り当て結果一覧</h3>';
+            
+            if (Object.keys(monthCarAssignments).length === 0) {
+                html += '<p class="info-text">まだ車両割り当てが保存されていません</p>';
+            } else {
+                activeDays.forEach(day => {
+                    const dayAssignment = monthAssignments[day.date] || { tea: [], car: [] };
+                    const carDrivers = dayAssignment.car || [];
+                    const dayCarAssignments = monthCarAssignments[day.date] || {};
+                    
+                    html += `<div style="margin-bottom: 30px; padding: 15px; background: white; border-radius: 8px; border: 1px solid #ddd;">`;
+                    html += `<h4 style="color: #2c3e50; margin-bottom: 10px;">${day.display}</h4>`;
+                    
+                    if (carDrivers.length === 0) {
+                        html += `<p style="color: #999;">車当番が設定されていません</p>`;
+                    } else {
+                        const dayAbsence = absences.find(a => a.date === day.date);
+                        const absentMembers = dayAbsence ? dayAbsence.members : [];
+                        const attendingMembers = members.filter(m => !absentMembers.includes(m));
+                        
+                        html += `<p style="font-size: 14px; color: #666; margin-bottom: 10px;">出席部員: ${attendingMembers.length}名</p>`;
+                        
+                        let totalAssigned = 0;
+                        
+                        carDrivers.forEach(driver => {
+                            const vehicle = vehicles.find(v => v.parent === driver);
+                            const capacity = vehicle ? vehicle.capacity : 4;
+                            const siblings = siblingsCount[driver] || 0;
+                            const assignedMembers = dayCarAssignments[driver] || [];
+                            totalAssigned += assignedMembers.length;
+                            const currentLoad = assignedMembers.length + siblings;
+                            const available = capacity - currentLoad;
+                            
+                            html += `<div style="margin: 10px 0; padding: 10px; background: #f9f9f9; border-left: 4px solid #3498db; border-radius: 4px;">`;
+                            html += `<div style="margin-bottom: 5px;">`;
+                            html += `<strong>${driver}の車</strong> `;
+                            html += `<span style="font-size: 12px; color: #666;">(定員: ${capacity}名, 兄弟姉妹: ${siblings}名, 乗車部員: ${assignedMembers.length}名, 残席: ${available}名)</span>`;
+                            html += `</div>`;
+                            
+                            if (assignedMembers.length > 0) {
+                                html += `<div style="font-size: 14px; color: #555;">`;
+                                html += `👥 ${assignedMembers.join('、')}`;
+                                html += `</div>`;
+                            } else {
+                                html += `<div style="font-size: 14px; color: #999;">乗車部員なし</div>`;
+                            }
+                            
+                            html += `</div>`;
+                        });
+                        
+                        const unassignedCount = attendingMembers.length - totalAssigned;
+                        if (unassignedCount > 0) {
+                            html += `<div style="margin-top: 10px; padding: 10px; background: #fff3cd; border-left: 4px solid #ffc107; border-radius: 4px; color: #856404;">`;
+                            html += `⚠️ 未割り当て部員: ${unassignedCount}名`;
+                            html += `</div>`;
+                        } else if (unassignedCount === 0 && totalAssigned > 0) {
+                            html += `<div style="margin-top: 10px; padding: 10px; background: #d4edda; border-left: 4px solid #28a745; border-radius: 4px; color: #155724;">`;
+                            html += `✓ 全員割り当て済み`;
+                            html += `</div>`;
+                        }
+                    }
+                    
+                    html += `</div>`;
+                });
+            }
+            
+            html += '</div>';
+
+            document.getElementById('carAssignmentContent').innerHTML = html;
+        }
+
+        // 車両割り当ての自動提案
+        async function autoAssignCars() {
+            const month = document.getElementById('carAssignmentMonth').value;
+            if (!month) return;
+
+            if (!confirm('自動割り当てを実行しますか？現在の割り当ては上書きされます。')) {
+                return;
+            }
+
+            const [year, monthNum] = month.split('-').map(Number);
+            const weekends = getWeekendsAndHolidays(year, monthNum);
+            const practiceDays = await getPracticeDays(month);
+            const activeDays = weekends.filter(w => practiceDays.includes(w.date));
+
+            const assignments = await getData(STORAGE_KEYS.assignments) || {};
+            const monthAssignments = assignments[month] || {};
+            const absences = await getData(STORAGE_KEYS.absences) || [];
+            const members = await getData(STORAGE_KEYS.members) || [];
+            const vehicles = await getData(STORAGE_KEYS.vehicles) || [];
+            const relations = await getData(STORAGE_KEYS.parent_child_relations) || {};
+            const siblingsCount = await getData(STORAGE_KEYS.siblings_count) || {};
+            const districts = await getData(STORAGE_KEYS.member_districts) || {};
+
+            activeDays.forEach(day => {
+                const dayAssignment = monthAssignments[day.date] || { tea: [], car: [] };
+                const carDrivers = dayAssignment.car || [];
+
+                // 欠席者を除外
+                const dayAbsence = absences.find(a => a.date === day.date);
+                const absentMembers = dayAbsence ? dayAbsence.members : [];
+                const attendingMembers = members.filter(m => !absentMembers.includes(m));
+
+                // 各車両に割り当て
+                const carAssignments = {};
+                const assignedMembers = new Set();
+
+                // まず、自分の子供を自分の車に割り当て
+                carDrivers.forEach(driver => {
+                    carAssignments[driver] = [];
+                    attendingMembers.forEach(member => {
+                        if (relations[member] === driver && !assignedMembers.has(member)) {
+                            carAssignments[driver].push(member);
+                            assignedMembers.add(member);
+                        }
+                    });
+                });
+
+                // 残りの部員を地区と兄弟関係を考慮して割り当て
+                const unassignedMembers = attendingMembers.filter(m => !assignedMembers.has(m));
+                
+                // 保護者ごとにグループ化（兄弟をまとめる）
+                const membersByParent = {};
+                unassignedMembers.forEach(member => {
+                    const parent = relations[member] || '未設定';
+                    if (!membersByParent[parent]) {
+                        membersByParent[parent] = [];
+                    }
+                    membersByParent[parent].push(member);
+                });
+
+                // 各保護者グループ（兄弟）を同じ車に割り当て
+                Object.keys(membersByParent).forEach(parent => {
+                    const siblings = membersByParent[parent];
+                    const siblingsDistrict = districts[siblings[0]] || '未設定'; // 兄弟の地区（最初の子供の地区）
+                    
+                    // この兄弟グループ全員が乗れる車を探す
+                    let bestDriver = null;
+                    let maxAvailable = -1;
+                    let hasSameDistrict = false;
+
+                    carDrivers.forEach(driver => {
+                        const vehicle = vehicles.find(v => v.parent === driver);
+                        const capacity = vehicle ? vehicle.capacity : 4;
+                        const driverSiblings = siblingsCount[driver] || 0;
+                        const currentLoad = carAssignments[driver].length + driverSiblings;
+                        const available = capacity - currentLoad;
+
+                        // 兄弟全員が乗れるか確認
+                        if (available < siblings.length) return;
+
+                        // この車に既に同じ地区の部員がいるか
+                        const sameDistrictInCar = carAssignments[driver].some(m => districts[m] === siblingsDistrict);
+
+                        // 優先順位: 1. 同じ地区の部員がいて余裕がある車 2. 余裕がある車
+                        if (sameDistrictInCar && (!hasSameDistrict || available > maxAvailable)) {
+                            hasSameDistrict = true;
+                            maxAvailable = available;
+                            bestDriver = driver;
+                        } else if (!hasSameDistrict && available > maxAvailable) {
+                            maxAvailable = available;
+                            bestDriver = driver;
+                        }
+                    });
+
+                    // 兄弟全員を同じ車に割り当て
+                    if (bestDriver && maxAvailable >= siblings.length) {
+                        siblings.forEach(member => {
+                            carAssignments[bestDriver].push(member);
+                            assignedMembers.add(member);
+                        });
+                    }
+                });
+
+                // まだ割り当てられていない部員がいれば、個別に割り当て
+                const stillUnassigned = attendingMembers.filter(m => !assignedMembers.has(m));
+                
+                stillUnassigned.forEach(member => {
+                    const memberDistrict = districts[member] || '未設定';
+                    let bestDriver = null;
+                    let maxAvailable = -1;
+                    let hasSameDistrict = false;
+
+                    carDrivers.forEach(driver => {
+                        const vehicle = vehicles.find(v => v.parent === driver);
+                        const capacity = vehicle ? vehicle.capacity : 4;
+                        const driverSiblings = siblingsCount[driver] || 0;
+                        const currentLoad = carAssignments[driver].length + driverSiblings;
+                        const available = capacity - currentLoad;
+
+                        if (available <= 0) return;
+
+                        const sameDistrictInCar = carAssignments[driver].some(m => districts[m] === memberDistrict);
+
+                        if (sameDistrictInCar && (!hasSameDistrict || available > maxAvailable)) {
+                            hasSameDistrict = true;
+                            maxAvailable = available;
+                            bestDriver = driver;
+                        } else if (!hasSameDistrict && available > maxAvailable) {
+                            maxAvailable = available;
+                            bestDriver = driver;
+                        }
+                    });
+
+                    if (bestDriver && maxAvailable > 0) {
+                        carAssignments[bestDriver].push(member);
+                    }
+                });
+
+                // セレクトボックスに反映
+                carDrivers.forEach(driver => {
+                    const select = document.getElementById(`car_${day.date}_${driver}`);
+                    if (select) {
+                        // 全ての選択を解除
+                        Array.from(select.options).forEach(option => {
+                            option.selected = false;
+                        });
+                        // 割り当てられた部員を選択
+                        carAssignments[driver].forEach(member => {
+                            Array.from(select.options).forEach(option => {
+                                if (option.value === member) {
+                                    option.selected = true;
+                                }
+                            });
+                        });
+                    }
+                });
+            });
+
+            alert('自動割り当てが完了しました。必要に応じて手動で調整してください。');
+        }
+
+        // 車両割り当てを保存
+        async function saveCarAssignments() {
+            const month = document.getElementById('carAssignmentMonth').value;
+            if (!month) return;
+
+            const [year, monthNum] = month.split('-').map(Number);
+            const weekends = getWeekendsAndHolidays(year, monthNum);
+            const practiceDays = await getPracticeDays(month);
+            const activeDays = weekends.filter(w => practiceDays.includes(w.date));
+
+            const assignments = await getData(STORAGE_KEYS.assignments) || {};
+            const monthAssignments = assignments[month] || {};
+
+            const carAssignments = await getData(STORAGE_KEYS.car_assignments) || {};
+            if (!carAssignments[month]) {
+                carAssignments[month] = {};
+            }
+
+            activeDays.forEach(day => {
+                const dayAssignment = monthAssignments[day.date] || { tea: [], car: [] };
+                const carDrivers = dayAssignment.car || [];
+
+                carAssignments[month][day.date] = {};
+
+                carDrivers.forEach(driver => {
+                    const select = document.getElementById(`car_${day.date}_${driver}`);
+                    if (select) {
+                        carAssignments[month][day.date][driver] = Array.from(select.selectedOptions).map(opt => opt.value);
+                    }
+                });
+            });
+
+            await saveData('baseball_car_assignments', carAssignments);
+            alert('車両割り当てを保存しました');
+            
+            // 画面を更新して結果一覧を表示
+            await loadCarAssignmentView();
+        }
+
+        // 総合スケジュール表示
+        async function loadScheduleView() {
+            const month = document.getElementById('scheduleMonth').value;
+            if (!month) return;
+
+            const [year, monthNum] = month.split('-').map(Number);
+            const weekends = getWeekendsAndHolidays(year, monthNum);
+            const practiceDays = await getPracticeDays(month);
+            const activeDays = weekends.filter(w => practiceDays.includes(w.date));
+
+            const grounds = await getData(STORAGE_KEYS.grounds) || [];
+            const assignments = await getData(STORAGE_KEYS.assignments) || {};
+            const absences = await getData(STORAGE_KEYS.absences) || [];
+            const vehicles = await getData(STORAGE_KEYS.vehicles) || [];
+            const members = await getData(STORAGE_KEYS.members) || [];
+            const carAssignments = await getData('baseball_car_assignments') || {};
+            const siblingsCount = await getData(STORAGE_KEYS.siblings_count) || {};
+
+            if (activeDays.length === 0) {
+                document.getElementById('scheduleContent').innerHTML = 
+                    '<p class="info-text">この月の練習日はまだ設定されていません</p>';
+                return;
+            }
+
+            const monthAssignments = assignments[month] || {};
+            const monthCarAssignments = carAssignments[month] || {};
+
+            let html = '<table>';
+            html += '<thead><tr>';
+            html += '<th>日付</th>';
+            html += '<th>グラウンド情報</th>';
+            html += '<th>お茶当番</th>';
+            html += '<th>車当番</th>';
+            html += '<th>欠席者</th>';
+            html += '<th>出席人数</th>';
+            html += '</tr></thead><tbody>';
+
+            activeDays.forEach(day => {
+                const assignment = monthAssignments[day.date] || { tea: [], car: [] };
+                const dayAbsences = absences.find(a => a.date === day.date);
+                const absentMembers = dayAbsences ? dayAbsences.members : [];
+                const attendCount = members.length - absentMembers.length;
+
+                // その日のグラウンド情報を取得
+                const dayGrounds = grounds.filter(g => g.date === day.date);
+                const groundInfo = dayGrounds.length > 0 
+                    ? dayGrounds.map(g => `${g.timeStart}-${g.timeEnd} ${g.location}`).join('<br>')
+                    : '-';
+
+                html += '<tr>';
+                html += `<td><strong>${day.display}</strong></td>`;
+                html += `<td>${groundInfo}</td>`;
+                html += `<td>${assignment.tea.join('<br>') || '-'}</td>`;
+                html += `<td>${assignment.car.join('<br>') || '-'}</td>`;
+                html += `<td>${absentMembers.join(', ') || '-'}</td>`;
+                html += `<td>${attendCount}名</td>`;
+                html += '</tr>';
+            });
+
+            html += '</tbody></table>';
+
+            // 車両乗車計画の詳細
+            html += '<div class="summary-card" style="margin-top: 20px;">';
+            html += '<h3>車両乗車計画</h3>';
+            activeDays.forEach(day => {
+                const assignment = monthAssignments[day.date] || { tea: [], car: [] };
+                const dayAbsences = absences.find(a => a.date === day.date);
+                const absentMembers = dayAbsences ? dayAbsences.members : [];
+                const attendCount = members.length - absentMembers.length;
+                const dayCarAssignment = monthCarAssignments[day.date] || {};
+
+                let totalCapacity = 0;
+                let totalAssigned = 0;
+
+                html += `<div style="margin-bottom: 20px; padding: 15px; background: white; border-radius: 8px;">`;
+                html += `<h4 style="margin-bottom: 10px;">${day.display}</h4>`;
+
+                assignment.car.forEach(driver => {
+                    const vehicle = vehicles.find(v => v.parent === driver);
+                    const capacity = vehicle ? vehicle.capacity : 4;
+                    const siblings = siblingsCount[driver] || 0;
+                    const assignedMembers = dayCarAssignment[driver] || [];
+                    const totalLoad = assignedMembers.length + siblings;
+                    totalCapacity += capacity;
+                    totalAssigned += assignedMembers.length;
+
+                    const statusColor = totalLoad <= capacity ? 'green' : 'red';
+                    
+                    html += `<div style="margin: 10px 0; padding: 10px; background: #f9f9f9; border-left: 4px solid ${statusColor};">`;
+                    html += `<strong>${driver}</strong> `;
+                    html += `<span style="font-size: 12px;">(定員${capacity}名 / 兄弟姉妹${siblings}名 / 部員${assignedMembers.length}名 / 合計${totalLoad}名)</span><br>`;
+                    if (assignedMembers.length > 0) {
+                        html += `<span style="font-size: 14px; color: #666;">乗車: ${assignedMembers.join(', ')}</span>`;
+                    } else {
+                        html += `<span style="font-size: 14px; color: #999;">割り当てなし</span>`;
+                    }
+                    html += `</div>`;
+                });
+
+                const status = totalCapacity >= attendCount ? '✓ OK' : '⚠ 定員不足';
+                const color = totalCapacity >= attendCount ? 'green' : 'red';
+
+                html += `<p style="margin-top: 10px; font-weight: bold;">`;
+                html += `出席${attendCount}名 / 割り当て済${totalAssigned}名 / 総定員${totalCapacity}名 `;
+                html += `<span style="color: ${color};">${status}</span>`;
+                html += `</p>`;
+                html += `</div>`;
+            });
+            html += '</div>';
+
+            document.getElementById('scheduleContent').innerHTML = html;
+        }
+
+        // 入力受付対象月を設定
+        function setInputTargetMonth() {
+            const month = document.getElementById('inputTargetMonth').value;
+            if (!month) {
+                alert('月を選択してください');
+                return;
+            }
+
+            saveData(STORAGE_KEYS.input_target_month, month);
+            alert(`${month}を入力受付対象月に設定しました`);
+            loadSettings();
+        }
+
+        // 入力受付を停止
+        function clearInputTargetMonth() {
+            if (!confirm('入力受付を停止しますか？保護者は希望日を入力できなくなります。')) {
+                return;
+            }
+
+            localStorage.removeItem(STORAGE_KEYS.input_target_month);
+            alert('入力受付を停止しました');
+            loadSettings();
+        }
+
+        // Firebase接続テスト
+        async function testFirebaseConnection() {
+            if (!firebaseInitialized) {
+                alert('Firebase設定が未設定です。HTMLファイル内のFIREBASE_CONFIGを設定してください。');
+                return;
+            }
+
+            try {
+                await db.collection('baseball_data').doc('test').set({
+                    test: true,
+                    timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                });
+                alert('✅ Firebase接続成功！データの保存と取得ができます。');
+            } catch (error) {
+                console.error('Firebase接続エラー:', error);
+                alert('❌ Firebase接続エラー: ' + error.message);
+            }
+        }
+
+        // ストレージモード変更
+        function changeStorageMode() {
+            const mode = document.getElementById('storageMode').value;
+            
+            if (mode === 'firebase' && !firebaseInitialized) {
+                alert('Firebase設定が未設定です。HTMLファイル内のFIREBASE_CONFIGを設定してください。');
+                document.getElementById('storageMode').value = 'local';
+                return;
+            }
+
+            localStorage.setItem(STORAGE_KEYS.storage_mode, mode);
+            
+            if (mode === 'firebase') {
+                document.getElementById('syncButton').style.display = 'inline-block';
+                alert('Firebaseモードに切り替えました。保護者の入力データがクラウドで共有されます。');
+            } else {
+                document.getElementById('syncButton').style.display = 'none';
+                alert('ローカルモードに切り替えました。データは各自のブラウザに保存されます。');
+            }
+            
+            updateFirebaseStatus();
+        }
+
+        // Firebaseからデータを同期
+        async function syncFromFirebase() {
+            if (!firebaseInitialized) {
+                alert('Firebaseが初期化されていません');
+                return;
+            }
+
+            try {
+                // 保護者の希望データを取得
+                const doc = await db.collection('baseball_data').doc(STORAGE_KEYS.preferences).get();
+                
+                if (doc.exists) {
+                    const data = doc.data().data;
+                    localStorage.setItem(STORAGE_KEYS.preferences, JSON.stringify(data));
+                    alert('Firebaseからデータを取得しました');
+                    
+                    // 画面を再読み込み
+                    if (currentRole === 'admin') {
+                        loadSettings();
+                    }
+                } else {
+                    alert('Firebaseにデータがありません');
+                }
+            } catch (error) {
+                console.error('同期エラー:', error);
+                alert('データの取得に失敗しました: ' + error.message);
+            }
+        }
+
+        // Firebase状態を更新
+        function updateFirebaseStatus() {
+            const statusDiv = document.getElementById('firebaseStatus');
+            const mode = localStorage.getItem(STORAGE_KEYS.storage_mode) || 'local';
+            
+            let html = '<div style="padding: 10px; border-radius: 5px; margin-bottom: 15px; ';
+            
+            if (firebaseInitialized && mode === 'firebase') {
+                html += 'background: #d4edda; color: #155724;">';
+                html += '<strong>✅ Firebase連携: 有効</strong><br>';
+                html += '<small>保護者の入力データがリアルタイムで収集されます</small>';
+            } else if (firebaseInitialized && mode === 'local') {
+                html += 'background: #fff3cd; color: #856404;">';
+                html += '<strong>⚠️ Firebase連携: 利用可能（現在はローカルモード）</strong><br>';
+                html += '<small>Firebaseモードに切り替えるとデータを共有できます</small>';
+            } else {
+                html += 'background: #f8d7da; color: #721c24;">';
+                html += '<strong>❌ Firebase連携: 未設定</strong><br>';
+                html += '<small>HTMLファイル内のFIREBASE_CONFIGを設定してください</small>';
+            }
+            
+            html += '</div>';
+            statusDiv.innerHTML = html;
+        }
+
+        // 設定画面読み込み
+        async function loadSettings() {
+            const parents = await getData(STORAGE_KEYS.parents) || [];
+            const members = await getData(STORAGE_KEYS.members) || [];
+            const targetMonth = await getData(STORAGE_KEYS.input_target_month);
+            const relations = await getData(STORAGE_KEYS.parent_child_relations) || {};
+            const siblingsCount = await getData(STORAGE_KEYS.siblings_count) || {};
+            const storageMode = localStorage.getItem(STORAGE_KEYS.storage_mode) || 'local';
+
+            // Firebase状態を更新
+            updateFirebaseStatus();
+            
+            // ストレージモードを設定
+            document.getElementById('storageMode').value = storageMode;
+            if (storageMode === 'firebase') {
+                document.getElementById('syncButton').style.display = 'inline-block';
+            }
+
+            // 入力受付対象月の表示
+            const targetMonthDiv = document.getElementById('currentInputTargetMonth');
+            if (targetMonth) {
+                const [year, month] = targetMonth.split('-');
+                targetMonthDiv.innerHTML = `<p style="padding: 10px; background: #d4edda; color: #155724; border-radius: 5px; font-weight: bold;">現在の受付対象月: ${year}年${month}月</p>`;
+            } else {
+                targetMonthDiv.innerHTML = `<p style="padding: 10px; background: #f8d7da; color: #721c24; border-radius: 5px; font-weight: bold;">現在、入力受付は停止中です</p>`;
+            }
+
+            // 保護者リスト
+            let parentHtml = '<ul style="list-style: none; padding: 0; margin-top: 15px;">';
+            parents.forEach(parent => {
+                parentHtml += `
+                    <li style="padding: 10px; background: white; margin: 5px 0; border-radius: 5px; display: flex; justify-content: space-between; align-items: center;">
+                        <span>${parent}</span>
+                        <button class="delete-btn" onclick="deleteParent('${parent}')">削除</button>
+                    </li>
+                `;
+            });
+            parentHtml += '</ul>';
+            document.getElementById('parentList').innerHTML = parentHtml;
+
+            // 部員リスト
+            let memberHtml = '<ul style="list-style: none; padding: 0; margin-top: 15px;">';
+            members.forEach(member => {
+                memberHtml += `
+                    <li style="padding: 10px; background: white; margin: 5px 0; border-radius: 5px; display: flex; justify-content: space-between; align-items: center;">
+                        <span>${member}</span>
+                        <button class="delete-btn" onclick="deleteMember('${member}')">削除</button>
+                    </li>
+                `;
+            });
+            memberHtml += '</ul>';
+            document.getElementById('memberList').innerHTML = memberHtml;
+
+            // 親子関係リスト
+            let relationHtml = '<table style="margin-top: 15px;"><thead><tr><th>部員名</th><th>保護者</th></tr></thead><tbody>';
+            members.forEach(member => {
+                const parent = relations[member] || '';
+                relationHtml += `<tr>`;
+                relationHtml += `<td><strong>${member}</strong></td>`;
+                relationHtml += `<td><select id="parent_of_${member}" style="width: 100%; padding: 5px;">`;
+                relationHtml += `<option value="">-- 選択してください --</option>`;
+                parents.forEach(p => {
+                    relationHtml += `<option value="${p}" ${parent === p ? 'selected' : ''}>${p}</option>`;
+                });
+                relationHtml += `</select></td>`;
+                relationHtml += `</tr>`;
+            });
+            relationHtml += '</tbody></table>';
+            relationHtml += '<button class="btn btn-primary" onclick="saveParentChildRelations()" style="margin-top: 15px;">保存</button>';
+            document.getElementById('parentChildRelationList').innerHTML = relationHtml;
+
+            // 兄弟姉妹人数リスト
+            let siblingsHtml = '<table style="margin-top: 15px;"><thead><tr><th>保護者名</th><th>同乗する兄弟姉妹の人数</th></tr></thead><tbody>';
+            parents.forEach(parent => {
+                const count = siblingsCount[parent] || 0;
+                siblingsHtml += `<tr>`;
+                siblingsHtml += `<td><strong>${parent}</strong></td>`;
+                siblingsHtml += `<td><input type="number" id="siblings_${parent}" min="0" max="10" value="${count}" style="width: 100px; padding: 5px;">名</td>`;
+                siblingsHtml += `</tr>`;
+            });
+            siblingsHtml += '</tbody></table>';
+            siblingsHtml += '<button class="btn btn-primary" onclick="saveSiblingsCount()" style="margin-top: 15px;">保存</button>';
+            document.getElementById('siblingsCountList').innerHTML = siblingsHtml;
+
+            // 居住地区リスト
+            const districts = await getData(STORAGE_KEYS.member_districts) || {};
+            let districtHtml = '<table style="margin-top: 15px;"><thead><tr><th>部員名</th><th>居住地区</th></tr></thead><tbody>';
+            members.forEach(member => {
+                const district = districts[member] || '';
+                districtHtml += `<tr>`;
+                districtHtml += `<td><strong>${member}</strong></td>`;
+                districtHtml += `<td><input type="text" id="district_${member}" value="${district}" placeholder="例：A" style="width: 100px; padding: 5px;"></td>`;
+                districtHtml += `</tr>`;
+            });
+            districtHtml += '</tbody></table>';
+            districtHtml += '<button class="btn btn-primary" onclick="saveMemberDistricts()" style="margin-top: 15px;">保存</button>';
+            document.getElementById('memberDistrictList').innerHTML = districtHtml;
+        }
+
+        // 親子関係を保存
+        async function saveParentChildRelations() {
+            const members = await getData(STORAGE_KEYS.members) || [];
+            const relations = {};
+
+            members.forEach(member => {
+                const select = document.getElementById(`parent_of_${member}`);
+                if (select && select.value) {
+                    relations[member] = select.value;
+                }
+            });
+
+            await saveData(STORAGE_KEYS.parent_child_relations, relations);
+            alert('親子関係を保存しました');
+        }
+
+        // 兄弟姉妹人数を保存
+        async function saveSiblingsCount() {
+            const parents = await getData(STORAGE_KEYS.parents) || [];
+            const siblingsCount = {};
+
+            parents.forEach(parent => {
+                const input = document.getElementById(`siblings_${parent}`);
+                if (input) {
+                    siblingsCount[parent] = parseInt(input.value) || 0;
+                }
+            });
+
+            await saveData(STORAGE_KEYS.siblings_count, siblingsCount);
+            alert('兄弟姉妹人数を保存しました');
+        }
+
+        // 居住地区を保存
+        async function saveMemberDistricts() {
+            const members = await getData(STORAGE_KEYS.members) || [];
+            const districts = {};
+
+            members.forEach(member => {
+                const input = document.getElementById(`district_${member}`);
+                if (input && input.value) {
+                    districts[member] = input.value.trim();
+                }
+            });
+
+            await saveData(STORAGE_KEYS.member_districts, districts);
+            alert('居住地区を保存しました');
+        }
+
+        // Excelから保護者名簿を読み込み
+        function importParentsFromExcel() {
+            const fileInput = document.getElementById('parentExcelFile');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                alert('ファイルを選択してください');
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = async function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    
+                    // 最初のシートを取得
+                    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                    const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
+                    
+                    console.log('読み込んだデータ:', jsonData);
+                    
+                    // 名前を抽出（空行をスキップ）
+                    const names = [];
+                    jsonData.forEach((row, index) => {
+                        if (row[0] && typeof row[0] === 'string') {
+                            const name = row[0].trim();
+                            if (name && name !== '保護者名' && name !== '名前') {
+                                names.push(name);
+                            }
+                        }
+                    });
+                    
+                    console.log('抽出した名前:', names);
+                    
+                    if (names.length === 0) {
+                        alert('有効な名前が見つかりませんでした');
+                        return;
+                    }
+
+                    // 既存のリストと統合（重複を除く）
+                    let parents = await getData(STORAGE_KEYS.parents) || [];
+                    names.forEach(name => {
+                        if (!parents.includes(name)) {
+                            parents.push(name);
+                        }
+                    });
+                    
+                    await saveData(STORAGE_KEYS.parents, parents);
+                    alert(`${names.length}名の保護者を読み込みました`);
+                    
+                    // ファイル選択をリセット
+                    fileInput.value = '';
+                    await loadSettings();
+                    
+                } catch (error) {
+                    console.error('Excel読み込みエラー:', error);
+                    alert('ファイルの読み込みに失敗しました。\nエラー: ' + error.message);
+                }
+            };
+            
+            reader.readAsArrayBuffer(file);
+        }
+
+        // Excelから部員名簿を読み込み
+        function importMembersFromExcel() {
+            const fileInput = document.getElementById('memberExcelFile');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                alert('ファイルを選択してください');
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = async function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    
+                    // 最初のシートを取得
+                    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                    const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
+                    
+                    console.log('読み込んだデータ:', jsonData);
+                    
+                    // 名前を抽出（空行をスキップ）
+                    const names = [];
+                    jsonData.forEach((row, index) => {
+                        if (row[0] && typeof row[0] === 'string') {
+                            const name = row[0].trim();
+                            if (name && name !== '部員名' && name !== '名前') {
+                                names.push(name);
+                            }
+                        }
+                    });
+                    
+                    console.log('抽出した名前:', names);
+                    
+                    if (names.length === 0) {
+                        alert('有効な名前が見つかりませんでした');
+                        return;
+                    }
+
+                    // 既存のリストと統合（重複を除く）
+                    let members = await getData(STORAGE_KEYS.members) || [];
+                    names.forEach(name => {
+                        if (!members.includes(name)) {
+                            members.push(name);
+                        }
+                    });
+                    
+                    await saveData(STORAGE_KEYS.members, members);
+                    alert(`${names.length}名の部員を読み込みました`);
+                    
+                    // ファイル選択をリセット
+                    fileInput.value = '';
+                    await loadSettings();
+                    
+                } catch (error) {
+                    console.error('Excel読み込みエラー:', error);
+                    alert('ファイルの読み込みに失敗しました。\nエラー: ' + error.message);
+                }
+            };
+            
+            reader.readAsArrayBuffer(file);
+        }
+
+        // 保護者追加
+        async function addParent() {
+            const name = document.getElementById('newParentName').value.trim();
+            if (!name) {
+                alert('保護者名を入力してください');
+                return;
+            }
+
+            const parents = await getData(STORAGE_KEYS.parents) || [];
+            if (parents.includes(name)) {
+                alert('既に登録されています');
+                return;
+            }
+
+            parents.push(name);
+            await saveData(STORAGE_KEYS.parents, parents);
+            document.getElementById('newParentName').value = '';
+            await loadSettings();
+        }
+
+        // 保護者削除
+        async function deleteParent(name) {
+            if (!confirm(`${name}を削除しますか？`)) return;
+
+            let parents = await getData(STORAGE_KEYS.parents) || [];
+            parents = parents.filter(p => p !== name);
+            await saveData(STORAGE_KEYS.parents, parents);
+            await loadSettings();
+        }
+
+        // 部員追加
+        async function addMember() {
+            const name = document.getElementById('newMemberName').value.trim();
+            if (!name) {
+                alert('部員名を入力してください');
+                return;
+            }
+
+            const members = await getData(STORAGE_KEYS.members) || [];
+            if (members.includes(name)) {
+                alert('既に登録されています');
+                return;
+            }
+
+            members.push(name);
+            await saveData(STORAGE_KEYS.members, members);
+            document.getElementById('newMemberName').value = '';
+            await loadSettings();
+        }
+
+        // 部員削除
+        async function deleteMember(name) {
+            if (!confirm(`${name}を削除しますか？`)) return;
+
+            let members = await getData(STORAGE_KEYS.members) || [];
+            members = members.filter(m => m !== name);
+            await saveData(STORAGE_KEYS.members, members);
+            await loadSettings();
+        }
+
+        // 全データクリア
+        function clearAllData() {
+            if (!confirm('本当に全データをクリアしますか？この操作は取り消せません。')) {
+                return;
+            }
+
+            if (!confirm('最終確認：全てのデータが削除されます。よろしいですか？')) {
+                return;
+            }
+
+            Object.values(STORAGE_KEYS).forEach(key => {
+                localStorage.removeItem(key);
+            });
+
+            alert('全データをクリアしました');
+            logout();
+            init();
+        }
+
+        // 初期化実行
+        window.onload = init;
+    </script>
+</body>
+</html>
