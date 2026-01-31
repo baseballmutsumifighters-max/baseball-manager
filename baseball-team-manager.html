@@ -1788,7 +1788,7 @@
 
             let html = '<table><thead><tr><th>保護者名</th><th>乗車可能人数</th><th>荷物車対応</th><th>操作</th></tr></thead><tbody>';
             vehicles.forEach(vehicle => {
-                const cargoStatus = vehicle.canCargo ? '✅ 可能' : '—';
+                const cargoStatus = vehicle.canCargo ? '\u2705 可能' : '—';
                 html += `
                     <tr>
                         <td>${vehicle.parent}</td>
@@ -2155,7 +2155,8 @@
             if (isRegistered) {
                 // 登録済みの場合
                 html += `<div style="background: #d4edda; border: 1px solid #c3e6cb; padding: 15px; border-radius: 5px; margin-bottom: 20px;">`;
-                html += '<h3 style="color: #155724; margin: 0 0 10px 0;">✅ ' + year + '年' + monthNum + '月分は登録済みです</h3>';                html += `<p style="color: #155724; margin: 0 0 10px 0;">当番希望の入力が完了しています。</p>`;
+                html += `<h3 style="color: #155724; margin: 0 0 10px 0;">` + '✅' + ` ${year}年${monthNum}月分は登録済みです</h3>`;
+                html += `<p style="color: #155724; margin: 0 0 10px 0;">当番希望の入力が完了しています。</p>`;
                 html += `<button class="btn btn-primary" onclick="showParentFormEdit()">入力をやり直す</button>`;
                 html += `</div>`;
                 html += `<div id="parentFormEditArea" style="display: none;">`;
@@ -3079,7 +3080,7 @@
                 message += '\n車両台数を増やすか、手動で調整してください。';
                 alert(message);
             } else {
-                alert('✅ 自動割り当てが完了しました。全員が割り当てられています。');
+                alert('\u2705 自動割り当てが完了しました。全員が割り当てられています。');
             }
         }
 
@@ -3578,7 +3579,7 @@
                     test: true,
                     timestamp: firebase.firestore.FieldValue.serverTimestamp()
                 });
-                alert('✅ Firebase接続成功！データの保存と取得ができます。');
+                alert('\u2705 Firebase接続成功！データの保存と取得ができます。');
             } catch (error) {
                 console.error('Firebase接続エラー:', error);
                 alert('❌ Firebase接続エラー: ' + error.message);
@@ -3657,7 +3658,7 @@
             
             if (firebaseInitialized && mode === 'firebase') {
                 html += 'background: #d4edda; color: #155724;">';
-                html += '<strong>✅ Firebase連携: 有効（ハイブリッドモード）</strong><br>';
+                html += '<strong>\u2705 Firebase連携: 有効（ハイブリッドモード）</strong><br>';
                 html += '<small>全データをFirebaseに保存、ローカルキャッシュで高速アクセス</small>';
             } else if (firebaseInitialized && mode === 'local') {
                 html += 'background: #fff3cd; color: #856404;">';
