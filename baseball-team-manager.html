@@ -417,6 +417,9 @@
                     <button class="btn btn-success" onclick="exportGroundMonthViewAsImage()" id="exportGroundMonthBtn" style="display: none; margin-bottom: 15px;">
                         📷 画像として保存
                     </button>
+                    <button class="btn btn-success" onclick="exportGroundThreeMonthsAsImage()" id="exportGround3MonthBtn" style="display: none; margin-bottom: 15px; margin-left: 10px;">
+                        📷 3ヶ月分ならべて保存
+                    </button>
                     <div id="groundMonthView"></div>
                 </div>
                 
@@ -1643,6 +1646,7 @@
             
             // ダウンロードボタンを表示
             document.getElementById('exportGroundMonthBtn').style.display = 'inline-block';
+            document.getElementById('exportGround3MonthBtn').style.display = 'inline-block';
         }
         
         // 月間予定表を画像として出力
@@ -1652,7 +1656,91 @@
                 alert('月を選択してください');
                 return;
             }
-            
+
+            const [year, monthNum] = month.split('-').map(Number);
+            const canvas = await drawGroundMonthCanvas(month);
+
+            // 画像をダウンロード
+            canvas.toBlob(blob => {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `グラウンド予定表_${year}年${monthNum}月.png`;
+                a.click();
+                URL.revokeObjectURL(url);
+            });
+        }
+
+        // 3ヶ月分の月間予定表を縦に並べて画像として出力
+        async function exportGroundThreeMonthsAsImage() {
+            const month = document.getElementById('groundViewMonth')?.value;
+            if (!month) {
+                alert('月を選択してください');
+                return;
+            }
+
+            const [year, monthNum] = month.split('-').map(Number);
+
+            // 選択月から3ヶ月分の年月を作成（年またぎ対応）
+            const months = [0, 1, 2].map(i => {
+                const d = new Date(year, monthNum - 1 + i, 1);
+                return {
+                    str: d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'),
+                    year: d.getFullYear(),
+                    monthNum: d.getMonth() + 1
+                };
+            });
+
+            // 各月のタイトルは描画せず、全体タイトルを最上部にまとめる
+            const canvases = [];
+            for (const m of months) {
+                canvases.push(await drawGroundMonthCanvas(m.str, false));
+            }
+
+            // 3枚のキャンバスを縦に結合
+            const gap = 40; // 月と月の間隔（ピクセル）
+            const titleAreaHeight = 90; // 全体タイトル領域（2倍スケールに合わせた実ピクセル）
+            const totalWidth = Math.max(...canvases.map(c => c.width));
+            const totalHeight = titleAreaHeight + canvases.reduce((sum, c) => sum + c.height, 0) + gap * (canvases.length - 1);
+
+            const combined = document.createElement('canvas');
+            combined.width = totalWidth;
+            combined.height = totalHeight;
+            const ctx = combined.getContext('2d');
+
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, totalWidth, totalHeight);
+
+            // 全体タイトル（例：7・8・9月予定表）
+            ctx.fillStyle = '#2c3e50';
+            ctx.font = 'bold 40px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(`${months.map(m => m.monthNum).join('・')}月予定表`, totalWidth / 2, 60);
+
+            let offsetY = titleAreaHeight;
+            canvases.forEach(c => {
+                ctx.drawImage(c, 0, offsetY);
+                offsetY += c.height + gap;
+            });
+
+            const first = months[0];
+            const last = months[2];
+            const rangeLabel = first.year === last.year
+                ? `${first.year}年${first.monthNum}月〜${last.monthNum}月`
+                : `${first.year}年${first.monthNum}月〜${last.year}年${last.monthNum}月`;
+
+            combined.toBlob(blob => {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `グラウンド予定表_${rangeLabel}.png`;
+                a.click();
+                URL.revokeObjectURL(url);
+            });
+        }
+
+        // 1ヶ月分の月間予定表をキャンバスに描画して返す
+        async function drawGroundMonthCanvas(month, includeTitle = true) {
             // 場所の色マップを読み込み
             cachedLocationColors = await getData(STORAGE_KEYS.ground_location_colors) || {};
             
@@ -1675,7 +1763,7 @@
             // サイズ設定
             const cellHeight = 18; // 22から18に縮小
             const headerHeight = 30;
-            const titleHeight = 40;
+            const titleHeight = includeTitle ? 40 : 10;
             const dateColWidth = 70; // 年月日の列幅を縮小
             const dayColWidth = 30; // 曜日も少し縮小
             const hourColWidth = 40; // 3文字が入る幅
@@ -1724,11 +1812,13 @@
             ctx.fillRect(0, 0, width, height);
             
             // タイトル
-            ctx.fillStyle = '#2c3e50';
-            ctx.font = 'bold 18px sans-serif';
-            ctx.textAlign = 'center';
-            ctx.fillText(`${year}年${monthNum}月 グラウンド予定表`, width / 2, 28);
-            
+            if (includeTitle) {
+                ctx.fillStyle = '#2c3e50';
+                ctx.font = 'bold 18px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText(`${year}年${monthNum}月 グラウンド予定表`, width / 2, 28);
+            }
+
             let y = titleHeight;
             
             // ヘッダー
@@ -1990,16 +2080,8 @@
             ctx.moveTo(vx, titleHeight);
             ctx.lineTo(vx, height - 10);
             ctx.stroke();
-            
-            // 画像をダウンロード
-            canvas.toBlob(blob => {
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `グラウンド予定表_${year}年${monthNum}月.png`;
-                a.click();
-                URL.revokeObjectURL(url);
-            });
+
+            return canvas;
         }
 
         // グラウンド削除
