@@ -535,6 +535,13 @@
                     <input type="month" id="assignmentMonth" onchange="loadAssignmentView()">
                 </div>
 
+                <div class="summary-card">
+                    <h3>📋 保護者の希望日一覧</h3>
+                    <p class="info-text">保護者が入力した当番希望日を一覧表で確認できます。</p>
+                    <button class="btn btn-primary" onclick="showPreferenceTable()" style="margin-bottom: 15px;">希望日一覧を表示</button>
+                    <div id="preferenceTableDisplay"></div>
+                </div>
+
                 <div id="assignmentContent"></div>
             </div>
 
@@ -4698,6 +4705,97 @@
             html += `<p style="margin: 5px 0;"><strong>入力率：</strong><span style="font-size: 18px; font-weight: bold;"> ${Math.round(inputCount / parents.length * 100)}%</span></p>`;
             html += '</div>';
             
+            displayDiv.innerHTML = html;
+        }
+
+        // 保護者の希望日一覧を表示
+        async function showPreferenceTable() {
+            const month = document.getElementById('assignmentMonth').value;
+            const displayDiv = document.getElementById('preferenceTableDisplay');
+
+            if (!month) {
+                displayDiv.innerHTML = '<p style="color: #e74c3c; margin-top: 10px;">対象月を選択してください。</p>';
+                return;
+            }
+
+            const [year, monthNum] = month.split('-').map(Number);
+            const weekends = getWeekendsAndHolidays(year, monthNum);
+            const practiceDays = await getPracticeDays(month);
+            const activeDays = weekends.filter(w => practiceDays.some(pd => (typeof pd === 'string' ? pd : pd.date) === w.date));
+
+            if (activeDays.length === 0) {
+                displayDiv.innerHTML = '<p class="info-text" style="margin-top: 10px;">この月の練習日はまだ設定されていません</p>';
+                return;
+            }
+
+            const preferences = await getData(STORAGE_KEYS.preferences) || {};
+            const parents = await getData(STORAGE_KEYS.parents) || [];
+
+            const prefLabels = {
+                both: { mark: '◎', color: '#27ae60', title: 'お茶も車も可能' },
+                tea_only: { mark: '茶', color: '#2980b9', title: 'お茶のみ可能' },
+                car_only: { mark: '車', color: '#e67e22', title: '車のみ可能' },
+                not_available: { mark: '×', color: '#e74c3c', title: '不可' }
+            };
+
+            let html = '<p style="font-size: 12px; color: #666; margin: 10px 0; padding: 10px; background: #f8f9fa; border-radius: 5px;">';
+            html += '<span style="color: #27ae60; font-weight: bold;">◎</span> お茶も車も可能 | ';
+            html += '<span style="color: #2980b9; font-weight: bold;">茶</span> お茶のみ可能 | ';
+            html += '<span style="color: #e67e22; font-weight: bold;">車</span> 車のみ可能 | ';
+            html += '<span style="color: #e74c3c; font-weight: bold;">×</span> 不可 | ';
+            html += '<span style="color: #999;">−</span> 未入力</p>';
+
+            html += '<div style="overflow-x: auto;">';
+            html += '<table style="width: 100%; border-collapse: collapse; white-space: nowrap;">';
+            html += '<thead><tr>';
+            html += '<th style="position: sticky; left: 0; background: #2c3e50; color: white; padding: 8px; text-align: left; z-index: 1;">保護者名</th>';
+            activeDays.forEach(day => {
+                html += `<th style="background: #2c3e50; color: white; padding: 8px; text-align: center;">${day.display}</th>`;
+            });
+            html += '</tr></thead><tbody>';
+
+            parents.forEach((parent, index) => {
+                const monthPrefs = (preferences[parent] || {})[month] || {};
+                const hasInput = Object.keys(monthPrefs).length > 0;
+                const rowBg = index % 2 === 0 ? '#ffffff' : '#f8f9fa';
+
+                html += '<tr>';
+                html += `<td style="position: sticky; left: 0; background: ${rowBg}; padding: 8px; border-bottom: 1px solid #ddd; font-weight: bold; z-index: 1;">${parent}${!hasInput ? ' <span style="color: #e74c3c; font-size: 11px;">(未入力)</span>' : ''}</td>`;
+
+                activeDays.forEach(day => {
+                    const pref = monthPrefs[day.date];
+                    if (pref && prefLabels[pref]) {
+                        const p = prefLabels[pref];
+                        html += `<td title="${p.title}" style="background: ${rowBg}; padding: 8px; text-align: center; border-bottom: 1px solid #ddd; color: ${p.color}; font-weight: bold;">${p.mark}</td>`;
+                    } else {
+                        html += `<td title="未入力" style="background: ${rowBg}; padding: 8px; text-align: center; border-bottom: 1px solid #ddd; color: #ccc;">−</td>`;
+                    }
+                });
+                html += '</tr>';
+            });
+
+            // 日別の希望者数集計
+            html += '<tr>';
+            html += '<td style="position: sticky; left: 0; background: #eaf2f8; padding: 8px; font-weight: bold; z-index: 1;">お茶可能人数</td>';
+            activeDays.forEach(day => {
+                const count = parents.filter(parent => {
+                    const pref = ((preferences[parent] || {})[month] || {})[day.date];
+                    return pref === 'both' || pref === 'tea_only';
+                }).length;
+                html += `<td style="background: #eaf2f8; padding: 8px; text-align: center; font-weight: bold;">${count}</td>`;
+            });
+            html += '</tr><tr>';
+            html += '<td style="position: sticky; left: 0; background: #fdf2e9; padding: 8px; font-weight: bold; z-index: 1;">車可能人数</td>';
+            activeDays.forEach(day => {
+                const count = parents.filter(parent => {
+                    const pref = ((preferences[parent] || {})[month] || {})[day.date];
+                    return pref === 'both' || pref === 'car_only';
+                }).length;
+                html += `<td style="background: #fdf2e9; padding: 8px; text-align: center; font-weight: bold;">${count}</td>`;
+            });
+            html += '</tr>';
+
+            html += '</tbody></table></div>';
             displayDiv.innerHTML = html;
         }
 
