@@ -11,6 +11,9 @@
     
     <!-- SheetJS for Excel file handling -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+    <!-- html2canvas for image export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <style>
         /* Version 2.1 - 保護者入力画面改善版 */
         * {
@@ -4738,21 +4741,48 @@
                 not_available: { mark: '×', color: '#e74c3c', title: '不可' }
             };
 
-            let html = '<p style="font-size: 12px; color: #666; margin: 10px 0; padding: 10px; background: #f8f9fa; border-radius: 5px;">';
+            let html = '<button class="btn btn-primary" onclick="exportPreferenceTableImage()" style="margin: 10px 0;">📷 画像として保存</button>';
+            html += '<div style="overflow-x: auto;">';
+            html += `<div id="preferenceTableCapture" data-month="${year}年${monthNum}月" style="display: inline-block; min-width: 100%; box-sizing: border-box; background: white; padding: 10px;">`;
+            html += `<h3 style="margin: 0 0 10px 0; color: #2c3e50;">当番希望日一覧 ${year}年${monthNum}月</h3>`;
+
+            html += '<p style="font-size: 12px; color: #666; margin: 10px 0; padding: 10px; background: #f8f9fa; border-radius: 5px;">';
             html += '<span style="color: #27ae60; font-weight: bold;">◎</span> お茶も車も可能 | ';
             html += '<span style="color: #2980b9; font-weight: bold;">茶</span> お茶のみ可能 | ';
             html += '<span style="color: #e67e22; font-weight: bold;">車</span> 車のみ可能 | ';
             html += '<span style="color: #e74c3c; font-weight: bold;">×</span> 不可 | ';
             html += '<span style="color: #999;">−</span> 未入力</p>';
 
-            html += '<div style="overflow-x: auto;">';
             html += '<table style="width: 100%; border-collapse: collapse; white-space: nowrap;">';
             html += '<thead><tr>';
             html += '<th style="position: sticky; left: 0; background: #2c3e50; color: white; padding: 8px; text-align: left; z-index: 1;">保護者名</th>';
             activeDays.forEach(day => {
-                html += `<th style="background: #2c3e50; color: white; padding: 8px; text-align: center;">${day.display}</th>`;
+                // 祝日名は表示せず「5/3(日)」形式のみにする
+                const shortDisplay = day.display.split(' ')[0];
+                html += `<th style="background: #2c3e50; color: white; padding: 8px; text-align: center;">${shortDisplay}</th>`;
             });
             html += '</tr></thead><tbody>';
+
+            // 日別の希望者数集計（最上部に表示）
+            html += '<tr>';
+            html += '<td style="position: sticky; left: 0; background: #eaf2f8; padding: 8px; font-weight: bold; z-index: 1;">お茶可能人数</td>';
+            activeDays.forEach(day => {
+                const count = parents.filter(parent => {
+                    const pref = ((preferences[parent] || {})[month] || {})[day.date];
+                    return pref === 'both' || pref === 'tea_only';
+                }).length;
+                html += `<td style="background: #eaf2f8; padding: 8px; text-align: center; font-weight: bold;">${count}</td>`;
+            });
+            html += '</tr><tr>';
+            html += '<td style="position: sticky; left: 0; background: #fdf2e9; padding: 8px; font-weight: bold; z-index: 1;">車可能人数</td>';
+            activeDays.forEach(day => {
+                const count = parents.filter(parent => {
+                    const pref = ((preferences[parent] || {})[month] || {})[day.date];
+                    return pref === 'both' || pref === 'car_only';
+                }).length;
+                html += `<td style="background: #fdf2e9; padding: 8px; text-align: center; font-weight: bold;">${count}</td>`;
+            });
+            html += '</tr>';
 
             parents.forEach((parent, index) => {
                 const monthPrefs = (preferences[parent] || {})[month] || {};
@@ -4774,29 +4804,37 @@
                 html += '</tr>';
             });
 
-            // 日別の希望者数集計
-            html += '<tr>';
-            html += '<td style="position: sticky; left: 0; background: #eaf2f8; padding: 8px; font-weight: bold; z-index: 1;">お茶可能人数</td>';
-            activeDays.forEach(day => {
-                const count = parents.filter(parent => {
-                    const pref = ((preferences[parent] || {})[month] || {})[day.date];
-                    return pref === 'both' || pref === 'tea_only';
-                }).length;
-                html += `<td style="background: #eaf2f8; padding: 8px; text-align: center; font-weight: bold;">${count}</td>`;
-            });
-            html += '</tr><tr>';
-            html += '<td style="position: sticky; left: 0; background: #fdf2e9; padding: 8px; font-weight: bold; z-index: 1;">車可能人数</td>';
-            activeDays.forEach(day => {
-                const count = parents.filter(parent => {
-                    const pref = ((preferences[parent] || {})[month] || {})[day.date];
-                    return pref === 'both' || pref === 'car_only';
-                }).length;
-                html += `<td style="background: #fdf2e9; padding: 8px; text-align: center; font-weight: bold;">${count}</td>`;
-            });
-            html += '</tr>';
-
-            html += '</tbody></table></div>';
+            html += '</tbody></table>';
+            html += '</div></div>';
             displayDiv.innerHTML = html;
+        }
+
+        // 希望日一覧を画像として保存
+        async function exportPreferenceTableImage() {
+            const target = document.getElementById('preferenceTableCapture');
+            if (!target) {
+                alert('先に「希望日一覧を表示」ボタンで一覧を表示してください');
+                return;
+            }
+
+            try {
+                const canvas = await html2canvas(target, {
+                    scale: 2,
+                    backgroundColor: '#ffffff',
+                    // 横スクロールで隠れている部分も含めて全体を描画する
+                    width: target.scrollWidth,
+                    height: target.scrollHeight,
+                    windowWidth: target.scrollWidth + 100
+                });
+
+                const link = document.createElement('a');
+                link.download = `当番希望日一覧_${target.dataset.month}.png`;
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+            } catch (e) {
+                console.error('画像出力エラー:', e);
+                alert('画像の出力に失敗しました。ページを再読み込みして再度お試しください。');
+            }
         }
 
         // 親子関係を保存
