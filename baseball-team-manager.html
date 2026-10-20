@@ -755,6 +755,24 @@
             car_assignments: 'baseball_car_assignments'
         };
 
+        // 監督1名＋コーチ2名。毎回いずれかの当番車に同乗するため、必要座席数に必ず加える
+        const STAFF_RIDERS = 3;
+
+        // 練習日管理で「車当番あり」になっている日か（旧形式の文字列データは車当番ありとして扱う）
+        function isCarDutyDay(practiceDays, date) {
+            const pd = practiceDays.find(p => (typeof p === 'string' ? p : p.date) === date);
+            if (!pd) return false;
+            return typeof pd === 'string' ? true : pd.carAssignment !== false;
+        }
+
+        // その日の荷物車（車当番のうち最初の荷物積載可の車）。自動割り当てでは荷物車を先頭に登録している
+        function findCargoDriver(carDrivers, vehicles) {
+            return carDrivers.find(driver => {
+                const vehicle = vehicles.find(v => v.parent === driver);
+                return vehicle && vehicle.canCargo;
+            }) || null;
+        }
+
         // 初期化
         function init() {
             // Firebase初期化を試行
@@ -3153,6 +3171,7 @@
             const lastTeaDuty = {}; // 各保護者の最後のお茶当番日を記録
             const consecutiveWarnings = []; // 連続当番の警告リスト
             const noCargoWarnings = []; // 荷物車なしの警告リスト
+            const shortageWarnings = []; // 座席が足りない日の警告リスト
             parents.forEach(p => {
                 dutyDaysCount[p] = 0;
                 teaCount[p] = 0;
@@ -3222,185 +3241,122 @@
                     lastTeaDuty[p] = day.date;
                 });
 
-                // 車当番候補をリストアップ
-                // まず、荷物車可能な車を1台選ぶ
-                let cargoDriver = null;
-                const cargoAvailable = [];
-                Object.keys(preferences).forEach(parent => {
-                    const monthPrefs = preferences[parent][month] || {};
-                    const dayPref = monthPrefs[day.date];
-                    if (dayPref === 'both' || dayPref === 'car_only') {
-                        const vehicle = vehicles.find(v => v.parent === parent);
-                        if (vehicle && vehicle.canCargo) {
-                            cargoAvailable.push(parent);
-                        }
-                    }
-                });
-                
-                // 車当番回数が少ない順、同数なら当番日数が少ない順で荷物車を選択
-                cargoAvailable.sort((a, b) => {
-                    if (carCount[a] !== carCount[b]) {
-                        return carCount[a] - carCount[b];
-                    }
-                    return dutyDaysCount[a] - dutyDaysCount[b];
-                });
-                if (cargoAvailable.length > 0) {
-                    cargoDriver = cargoAvailable[0];
-                } else {
-                    // 荷物車が選べなかった日を記録
-                    noCargoWarnings.push(day.display);
-                }
-                
-                // お茶当番に選ばれた人で車も可能な人（荷物車の人も含む）
-                const teaWithCar = [];
-                selectedTea.forEach(parent => {
-                    const monthPrefs = preferences[parent][month] || {};
-                    const dayPref = monthPrefs[day.date];
-                    if (dayPref === 'both' || dayPref === 'car_only') {
-                        teaWithCar.push(parent);
-                    }
-                });
-                
-                // 必要な車両台数を計算
-                let totalCapacity = 0;
                 let selectedCar = [];
-                
-                // 荷物車を最初に追加（運転手のみ、定員0として計算）
-                if (cargoDriver) {
-                    selectedCar.push(cargoDriver);
-                    totalCapacity += 0; // 荷物車は運転手のみ（定員0）
-                }
-                
-                // お茶当番で車可能な人を追加（重複を避ける）
-                teaWithCar.forEach(parent => {
-                    if (!selectedCar.includes(parent)) {
-                        selectedCar.push(parent);
-                    }
-                });
-                
-                // お茶当番の車の定員を計算（荷物車以外）
-                teaWithCar.forEach(parent => {
-                    if (parent === cargoDriver) return; // 荷物車は既に定員0でカウント済み
-                    const vehicle = vehicles.find(v => v.parent === parent);
-                    const capacity = vehicle ? vehicle.capacity : 4;
-                    const siblings = siblingsCount[parent] || 0;
-                    totalCapacity += Math.max(0, capacity - siblings);
-                });
-                
-                // ここでcarAvailableを作成（selectedCarに荷物車とteaWithCarが入った後）
-                const carAvailable = [];
-                Object.keys(preferences).forEach(parent => {
-                    // お茶当番ではなく、かつ既に車当番に選ばれていない人のみ
-                    if (!selectedTea.includes(parent) && !selectedCar.includes(parent)) {
+
+                // 練習日管理で「車当番なし」の日は車当番を割り当てない
+                if (isCarDutyDay(practiceDays, day.date)) {
+                    // 部員を乗せられる座席数（定員から、その運転手の兄弟姉妹分を引く）
+                    const seatsFor = parent => {
+                        const vehicle = vehicles.find(v => v.parent === parent);
+                        const capacity = vehicle ? vehicle.capacity : 4;
+                        return Math.max(0, capacity - (siblingsCount[parent] || 0));
+                    };
+
+                    // まず、荷物車可能な車を1台選ぶ
+                    let cargoDriver = null;
+                    const cargoAvailable = [];
+                    Object.keys(preferences).forEach(parent => {
                         const monthPrefs = preferences[parent][month] || {};
                         const dayPref = monthPrefs[day.date];
                         if (dayPref === 'both' || dayPref === 'car_only') {
-                            carAvailable.push(parent);
-                        }
-                    }
-                });
-
-                // 車当番回数が少ない順、同数なら当番日数が少ない順にソート
-                carAvailable.sort((a, b) => {
-                    if (carCount[a] !== carCount[b]) {
-                        return carCount[a] - carCount[b];
-                    }
-                    return dutyDaysCount[a] - dutyDaysCount[b];
-                });
-
-                // 必要定員を計算（出席人数 + 全運転手の兄弟姉妹合計）
-                // ※運転手は車の定員に含まれているので加算しない
-                let requiredCapacity = attendingCount + selectedCar.reduce((sum, driver) => sum + (siblingsCount[driver] || 0), 0);
-
-                // 追加で必要な車両を追加
-                for (const parent of carAvailable) {
-                    // 既に十分な定員があれば追加しない
-                    if (totalCapacity >= requiredCapacity) break;
-                    
-                    // 重複チェック
-                    if (selectedCar.includes(parent)) continue;
-                    
-                    // この車を追加
-                    const vehicle = vehicles.find(v => v.parent === parent);
-                    const capacity = vehicle ? vehicle.capacity : 4;
-                    const siblings = siblingsCount[parent] || 0;
-                    const addedCapacity = Math.max(0, capacity - siblings);
-                    
-                    totalCapacity += addedCapacity;
-                    selectedCar.push(parent);
-                    
-                    // 必要定員を再計算（兄弟姉妹が増えた可能性があるため）
-                    requiredCapacity = attendingCount + selectedCar.reduce((sum, driver) => sum + (siblingsCount[driver] || 0), 0);
-                }
-                
-                // 最終的な重複除去（念のため）
-                selectedCar = [...new Set(selectedCar)];
-                
-                // 重複除去後、定員を再計算
-                totalCapacity = 0;
-                if (cargoDriver && selectedCar.includes(cargoDriver)) {
-                    totalCapacity += 0; // 荷物車
-                }
-                selectedCar.forEach(parent => {
-                    if (parent === cargoDriver) return;
-                    const vehicle = vehicles.find(v => v.parent === parent);
-                    const capacity = vehicle ? vehicle.capacity : 4;
-                    const siblings = siblingsCount[parent] || 0;
-                    totalCapacity += Math.max(0, capacity - siblings);
-                });
-                requiredCapacity = attendingCount + selectedCar.reduce((sum, driver) => sum + (siblingsCount[driver] || 0), 0);
-                
-                // 最適化: 余剰な車両を削除（最小台数にする）
-                // お茶当番兼任の人と荷物車は残し、車のみの人から削除を試みる
-                let optimized = true;
-                while (optimized) {
-                    optimized = false;
-                    
-                    // 削除候補：荷物車でもなく、お茶当番でもない人（車のみの人）
-                    const removableCars = selectedCar
-                        .filter(p => p !== cargoDriver) // 荷物車は削除しない
-                        .filter(p => !selectedTea.includes(p)) // お茶当番兼任の人は削除しない
-                        .map(parent => {
                             const vehicle = vehicles.find(v => v.parent === parent);
-                            const capacity = vehicle ? vehicle.capacity : 4;
-                            const siblings = siblingsCount[parent] || 0;
-                            const effectiveCapacity = Math.max(0, capacity - siblings);
-                            return { parent, effectiveCapacity };
-                        })
-                        .sort((a, b) => {
-                            // 有効定員が同じなら、車当番回数が多い人を優先削除
-                            if (a.effectiveCapacity === b.effectiveCapacity) {
-                                return carCount[b.parent] - carCount[a.parent];
+                            if (vehicle && vehicle.canCargo) {
+                                cargoAvailable.push(parent);
                             }
-                            return a.effectiveCapacity - b.effectiveCapacity;
-                        });
-                    
-                    for (const item of removableCars) {
-                        const parent = item.parent;
-                        
-                        // この車を削除した場合の定員を計算
-                        const newTotalCapacity = totalCapacity - item.effectiveCapacity;
-                        
-                        // 削除した場合の兄弟姉妹合計（この運転手の兄弟姉妹が減る）
-                        const newTotalSiblings = selectedCar
-                            .filter(d => d !== parent)
-                            .reduce((sum, driver) => sum + (siblingsCount[driver] || 0), 0);
-                        
-                        const newRequiredCapacity = attendingCount + newTotalSiblings;
-                        
-                        // 削除しても定員が足りる場合は削除
-                        if (newTotalCapacity >= newRequiredCapacity) {
-                            selectedCar = selectedCar.filter(p => p !== parent);
-                            totalCapacity = newTotalCapacity;
-                            requiredCapacity = newRequiredCapacity;
-                            optimized = true; // もう一度最適化を試みる
-                            break; // 1台削除したら再チェック
+                        }
+                    });
+
+                    // 車当番回数が少ない順、同数なら当番日数が少ない順で荷物車を選択
+                    cargoAvailable.sort((a, b) => {
+                        if (carCount[a] !== carCount[b]) {
+                            return carCount[a] - carCount[b];
+                        }
+                        return dutyDaysCount[a] - dutyDaysCount[b];
+                    });
+                    if (cargoAvailable.length > 0) {
+                        cargoDriver = cargoAvailable[0];
+                        selectedCar.push(cargoDriver); // 荷物車は運転手のみ（座席0として計算）
+                    } else {
+                        // 荷物車が選べなかった日を記録
+                        noCargoWarnings.push(day.display);
+                    }
+
+                    // お茶当番に選ばれた人で車も可能な人は車当番も兼ねる
+                    selectedTea.forEach(parent => {
+                        const monthPrefs = preferences[parent][month] || {};
+                        const dayPref = monthPrefs[day.date];
+                        if ((dayPref === 'both' || dayPref === 'car_only') && !selectedCar.includes(parent)) {
+                            selectedCar.push(parent);
+                        }
+                    });
+
+                    // 必要座席数 = 出席部員 + 監督・コーチ
+                    // （兄弟姉妹は各車の座席数から差し引き済みなので、ここには加えない）
+                    const requiredCapacity = attendingCount + STAFF_RIDERS;
+                    let totalCapacity = selectedCar
+                        .filter(p => p !== cargoDriver)
+                        .reduce((sum, p) => sum + seatsFor(p), 0);
+
+                    // お茶当番ではなく、まだ車当番に選ばれていない人を候補にする
+                    const carAvailable = [];
+                    Object.keys(preferences).forEach(parent => {
+                        if (!selectedTea.includes(parent) && !selectedCar.includes(parent)) {
+                            const monthPrefs = preferences[parent][month] || {};
+                            const dayPref = monthPrefs[day.date];
+                            if (dayPref === 'both' || dayPref === 'car_only') {
+                                carAvailable.push(parent);
+                            }
+                        }
+                    });
+
+                    // 車当番回数が少ない順、同数なら当番日数が少ない順にソート
+                    carAvailable.sort((a, b) => {
+                        if (carCount[a] !== carCount[b]) {
+                            return carCount[a] - carCount[b];
+                        }
+                        return dutyDaysCount[a] - dutyDaysCount[b];
+                    });
+
+                    // 座席が足りるまで車両を追加
+                    for (const parent of carAvailable) {
+                        if (totalCapacity >= requiredCapacity) break;
+                        totalCapacity += seatsFor(parent);
+                        selectedCar.push(parent);
+                    }
+
+                    // 最適化: 余剰な車両を削除（最小台数にする）
+                    // お茶当番兼任の人と荷物車は残し、車のみの人から削除を試みる
+                    let optimized = true;
+                    while (optimized) {
+                        optimized = false;
+
+                        const removableCars = selectedCar
+                            .filter(p => p !== cargoDriver)
+                            .filter(p => !selectedTea.includes(p))
+                            .map(parent => ({ parent, effectiveCapacity: seatsFor(parent) }))
+                            .sort((a, b) => {
+                                // 有効座席数が同じなら、車当番回数が多い人を優先削除
+                                if (a.effectiveCapacity === b.effectiveCapacity) {
+                                    return carCount[b.parent] - carCount[a.parent];
+                                }
+                                return a.effectiveCapacity - b.effectiveCapacity;
+                            });
+
+                        for (const item of removableCars) {
+                            const newTotalCapacity = totalCapacity - item.effectiveCapacity;
+                            if (newTotalCapacity >= requiredCapacity) {
+                                selectedCar = selectedCar.filter(p => p !== item.parent);
+                                totalCapacity = newTotalCapacity;
+                                optimized = true; // もう一度最適化を試みる
+                                break; // 1台削除したら再チェック
+                            }
                         }
                     }
+
+                    if (totalCapacity < requiredCapacity) {
+                        shortageWarnings.push(`${day.display}（必要${requiredCapacity}席 / 確保${totalCapacity}席）`);
+                    }
                 }
-                
-                // 最終的な重複排除（念のため）
-                selectedCar = [...new Set(selectedCar)];
                 
                 // 車当番回数をカウント
                 selectedCar.forEach(p => {
@@ -3435,8 +3391,8 @@
                         
                         const dayAssignment = assignments[day.date];
                         
-                        // 車当番が可能な場合
-                        if ((dayPref === 'both' || dayPref === 'car_only') && !dayAssignment.car.includes(parent)) {
+                        // 車当番が可能な場合（「車当番なし」の日は除く）
+                        if ((dayPref === 'both' || dayPref === 'car_only') && isCarDutyDay(practiceDays, day.date) && !dayAssignment.car.includes(parent)) {
                             dayAssignment.car.push(parent);
                             dutyDaysCount[parent]++;
                             carCount[parent]++;
@@ -3497,9 +3453,18 @@
                 });
                 message += '\n→ 荷物車が可能な保護者に車当番を依頼するか、手動で調整してください。';
             }
+
+            // 座席不足の警告
+            if (shortageWarnings.length > 0) {
+                message += `\n\n⚠️ 以下の日程で座席が足りません（出席部員＋監督・コーチ${STAFF_RIDERS}名）：`;
+                shortageWarnings.forEach(warning => {
+                    message += `\n  • ${warning}`;
+                });
+                message += '\n→ 車当番が可能な保護者が不足しています。手動で調整してください。';
+            }
             
             message += '\n\n各日の出席人数に応じて必要な車両台数を割り当てています。';
-            message += '\n※定員は出席部員数 + 兄弟姉妹の必要最小限を確保しています。';
+            message += `\n※座席は「出席部員数＋監督・コーチ${STAFF_RIDERS}名」分を確保しています（兄弟姉妹の分は各車の定員から差し引き済み）。`;
             message += '\n必要に応じて手動で調整してください。';
             
             alert(message);
@@ -3538,6 +3503,7 @@
             activeDays.forEach(day => {
                 const dayAssignment = monthAssignments[day.date] || { tea: [], car: [] };
                 const carDrivers = dayAssignment.car || [];
+                const cargoDriver = findCargoDriver(carDrivers, vehicles);
 
                 // 欠席者を取得
                 const dayAbsence = absences.find(a => a.date === day.date);
@@ -3546,15 +3512,17 @@
 
                 html += `<div class="assignment-card">`;
                 html += `<h4>${day.display}</h4>`;
-                html += `<p style="font-size: 14px; color: #666;">出席部員: ${attendingMembers.length}名</p>`;
+                html += `<p style="font-size: 14px; color: #666;">出席部員: ${attendingMembers.length}名 ＋ 監督・コーチ${STAFF_RIDERS}名</p>`;
 
-                if (carDrivers.length === 0) {
+                if (!isCarDutyDay(practiceDays, day.date)) {
+                    html += `<p style="color: #e67e22; font-weight: bold;">車当番なし</p>`;
+                } else if (carDrivers.length === 0) {
                     html += `<p style="color: #e74c3c;">車当番が設定されていません</p>`;
                 } else {
                     carDrivers.forEach(driver => {
                         const vehicle = vehicles.find(v => v.parent === driver);
                         const capacity = vehicle ? vehicle.capacity : 4;
-                        const isCargo = vehicle ? vehicle.canCargo : false;
+                        const isCargo = driver === cargoDriver;
                         const siblings = siblingsCount[driver] || 0;
                         const effectiveCapacity = isCargo ? 0 : capacity; // 荷物車は運転手のみ
                         const availableSeats = effectiveCapacity - siblings;
@@ -3591,12 +3559,15 @@
                 activeDays.forEach(day => {
                     const dayAssignment = monthAssignments[day.date] || { tea: [], car: [] };
                     const carDrivers = dayAssignment.car || [];
+                    const cargoDriver = findCargoDriver(carDrivers, vehicles);
                     const dayCarAssignments = monthCarAssignments[day.date] || {};
-                    
+
                     html += `<div style="margin-bottom: 30px; padding: 15px; background: white; border-radius: 8px; border: 1px solid #ddd;">`;
                     html += `<h4 style="color: #2c3e50; margin-bottom: 10px;">${day.display}</h4>`;
-                    
-                    if (carDrivers.length === 0) {
+
+                    if (!isCarDutyDay(practiceDays, day.date)) {
+                        html += `<p style="color: #e67e22; font-weight: bold;">車当番なし</p>`;
+                    } else if (carDrivers.length === 0) {
                         html += `<p style="color: #999;">車当番が設定されていません</p>`;
                     } else {
                         const dayAbsence = absences.find(a => a.date === day.date);
@@ -3610,7 +3581,7 @@
                         carDrivers.forEach(driver => {
                             const vehicle = vehicles.find(v => v.parent === driver);
                             const capacity = vehicle ? vehicle.capacity : 4;
-                            const isCargo = vehicle ? vehicle.canCargo : false;
+                            const isCargo = driver === cargoDriver;
                             const siblings = siblingsCount[driver] || 0;
                             const assignedMembers = dayCarAssignments[driver] || [];
                             totalAssigned += assignedMembers.length;
@@ -3686,6 +3657,9 @@
             const districts = await getData(STORAGE_KEYS.member_districts) || {};
 
             activeDays.forEach(day => {
+                // 「車当番なし」の日は乗車割り当てをしない
+                if (!isCarDutyDay(practiceDays, day.date)) return;
+
                 const dayAssignment = monthAssignments[day.date] || { tea: [], car: [] };
                 const carDrivers = dayAssignment.car || [];
 
@@ -3705,38 +3679,29 @@
                 const absentMembers = dayAbsence ? dayAbsence.members : [];
                 const attendingMembers = members.filter(m => !absentMembers.includes(m));
 
-                // 必要定員を計算（出席部員 + 全運転手の兄弟姉妹）
-                // ※運転手は車の定員に含まれているので加算しない
-                const totalSiblings = carDrivers.reduce((sum, driver) => sum + (siblingsCount[driver] || 0), 0);
-                const requiredCapacity = attendingMembers.length + totalSiblings;
+                // 荷物車は1日1台だけ（荷物積載可の車が複数いても、2台目以降は通常の車として部員を乗せる）
+                const cargoDriver = findCargoDriver(carDrivers, vehicles);
 
-                // 車両の合計定員を計算（荷物車は定員0として計算）
+                // 必要座席数 = 出席部員 + 監督・コーチ
+                const requiredCapacity = attendingMembers.length + STAFF_RIDERS;
+
+                // 部員・監督・コーチが乗れる座席数（荷物車は運転手のみなので0、他は定員から兄弟姉妹分を引く）
                 const totalCapacity = carDrivers.reduce((sum, driver) => {
+                    if (driver === cargoDriver) return sum;
                     const vehicle = vehicles.find(v => v.parent === driver);
-                    if (vehicle && vehicle.canCargo) {
-                        return sum + 0; // 荷物車は運転手のみなので定員0
-                    }
-                    return sum + (vehicle ? vehicle.capacity : 4);
+                    const capacity = vehicle ? vehicle.capacity : 4;
+                    return sum + Math.max(0, capacity - (siblingsCount[driver] || 0));
                 }, 0);
 
                 // 定員チェック
                 if (totalCapacity < requiredCapacity) {
-                    alert(`${day.date}: 定員が不足しています。\n必要: ${requiredCapacity}名（出席${attendingMembers.length}名 + 兄弟姉妹${totalSiblings}名）\n現在: ${totalCapacity}名\n車当番の台数を増やすか、定員の大きい車を追加してください。`);
+                    alert(`${day.date}: 座席が不足しています。\n必要: ${requiredCapacity}席（出席部員${attendingMembers.length}名 + 監督・コーチ${STAFF_RIDERS}名）\n現在: ${totalCapacity}席（兄弟姉妹の分を除く）\n車当番の台数を増やすか、定員の大きい車を追加してください。`);
                     return;
                 }
 
                 // 各車両に割り当て
                 const carAssignments = {};
                 const assignedMembers = new Set();
-                
-                // 荷物車を特定
-                let cargoDriver = null;
-                carDrivers.forEach(driver => {
-                    const vehicle = vehicles.find(v => v.parent === driver);
-                    if (vehicle && vehicle.canCargo) {
-                        cargoDriver = driver;
-                    }
-                });
 
                 // 全ての運転手の車を初期化
                 carDrivers.forEach(driver => {
@@ -3784,7 +3749,7 @@
                     carDrivers.forEach(driver => {
                         const vehicle = vehicles.find(v => v.parent === driver);
                         const capacity = vehicle ? vehicle.capacity : 4;
-                        const isCargo = vehicle ? vehicle.canCargo : false;
+                        const isCargo = driver === cargoDriver;
                         const effectiveCapacity = isCargo ? 0 : capacity; // 荷物車は運転手のみ（定員0）
                         const driverSiblings = siblingsCount[driver] || 0;
                         const currentLoad = carAssignments[driver].length + driverSiblings;
@@ -3828,7 +3793,7 @@
                     carDrivers.forEach(driver => {
                         const vehicle = vehicles.find(v => v.parent === driver);
                         const capacity = vehicle ? vehicle.capacity : 4;
-                        const isCargo = vehicle ? vehicle.canCargo : false;
+                        const isCargo = driver === cargoDriver;
                         const effectiveCapacity = isCargo ? 0 : capacity; // 荷物車は運転手のみ（定員0）
                         const driverSiblings = siblingsCount[driver] || 0;
                         const currentLoad = carAssignments[driver].length + driverSiblings;
@@ -4074,11 +4039,17 @@
                 const attendCount = members.length - absentMembers.length;
                 const dayCarAssignment = monthCarAssignments[day.date] || {};
 
-                let totalCapacity = 0;
+                let totalCapacity = 0; // 部員・監督・コーチが乗れる座席数（荷物車と兄弟姉妹分を除く）
                 let totalAssigned = 0;
 
                 html += `<div style="margin-bottom: 20px; padding: 15px; background: white; border-radius: 8px;">`;
                 html += `<h4 style="margin-bottom: 10px;">${day.display}</h4>`;
+
+                if (!isCarDutyDay(practiceDays, day.date)) {
+                    html += `<p style="color: #e67e22; font-weight: bold;">車当番なし</p>`;
+                    html += `</div>`;
+                    return;
+                }
 
                 assignment.car.forEach(driver => {
                     const vehicle = vehicles.find(v => v.parent === driver);
@@ -4086,7 +4057,9 @@
                     const siblings = siblingsCount[driver] || 0;
                     const assignedMembers = dayCarAssignment[driver] || [];
                     const totalLoad = assignedMembers.length + siblings;
-                    totalCapacity += capacity;
+                    if (driver !== findCargoDriver(assignment.car, vehicles)) {
+                        totalCapacity += Math.max(0, capacity - siblings);
+                    }
                     totalAssigned += assignedMembers.length;
 
                     const statusColor = totalLoad <= capacity ? 'green' : 'red';
@@ -4102,11 +4075,12 @@
                     html += `</div>`;
                 });
 
-                const status = totalCapacity >= attendCount ? '✓ OK' : '⚠ 定員不足';
-                const color = totalCapacity >= attendCount ? 'green' : 'red';
+                const requiredSeats = attendCount + STAFF_RIDERS;
+                const status = totalCapacity >= requiredSeats ? '✓ OK' : '⚠ 定員不足';
+                const color = totalCapacity >= requiredSeats ? 'green' : 'red';
 
                 html += `<p style="margin-top: 10px; font-weight: bold;">`;
-                html += `出席${attendCount}名 / 割り当て済${totalAssigned}名 / 総定員${totalCapacity}名 `;
+                html += `出席${attendCount}名＋監督・コーチ${STAFF_RIDERS}名 / 割り当て済${totalAssigned}名 / 座席${totalCapacity}席 `;
                 html += `<span style="color: ${color};">${status}</span>`;
                 html += `</p>`;
                 html += `</div>`;
